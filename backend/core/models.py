@@ -4,6 +4,7 @@ Zone, Employee, Task, TaskEvent.
 """
 
 from django.db import models
+from django.contrib.auth.hashers import make_password, check_password
 from django.utils import timezone
 
 
@@ -71,6 +72,11 @@ class Zone(models.Model):
 class Employee(models.Model):
     """Retail floor employee."""
     name = models.CharField(max_length=100)
+
+    # Login credentials — username is used for login, password_hash stores Django's hashed password
+    username = models.CharField(max_length=64, unique=True, default='')
+    password_hash = models.CharField(max_length=256, default='')
+
     skill_tags = models.JSONField(default=list)  # ["checkout", "electronics", ...]
 
     STATUS_CHOICES = [
@@ -88,10 +94,16 @@ class Employee(models.Model):
     )
     last_assigned_at = models.DateTimeField(null=True, blank=True)
 
-    # Simple token auth for prototype
+    # Session token — generated on login/register, used for WS auth
     auth_token = models.CharField(max_length=64, unique=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def set_password(self, raw_password):
+        self.password_hash = make_password(raw_password)
+
+    def check_password(self, raw_password):
+        return check_password(raw_password, self.password_hash)
 
     def __str__(self):
         return f"{self.name} ({self.status})"

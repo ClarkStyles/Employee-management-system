@@ -2,6 +2,7 @@
 DRF views for Zone, Employee, Task.
 """
 
+import uuid
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
@@ -100,18 +101,102 @@ class TaskViewSet(viewsets.ModelViewSet):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def auth_token(request):
-    """POST /api/auth/token/ — simple token auth for prototype."""
-    token = request.data.get('token', '')
+    """
+    POST /api/auth/token/ — employee login with username + password.
+    Returns the session token on success.
+    """
+    username = request.data.get('username', '').strip()
+    password = request.data.get('password', '').strip()
+
+    if not username or not password:
+        return Response(
+            {'error': 'Username and password are required.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
     try:
-        employee = Employee.objects.get(auth_token=token)
-        return Response({
-            'token': employee.auth_token,
-            'employee_id': employee.id,
-            'name': employee.name,
-            'status': employee.status,
-        })
+        employee = Employee.objects.get(username=username)
     except Employee.DoesNotExist:
         return Response(
-            {'error': 'Invalid token'},
+            {'error': 'Invalid username or password.'},
             status=status.HTTP_401_UNAUTHORIZED
         )
+
+    if not employee.check_password(password):
+        return Response(
+            {'error': 'Invalid username or password.'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    # Regenerate token on every login for session security
+    employee.auth_token = uuid.uuid4().hex
+    employee.status = 'FREE'
+    employee.save(update_fields=['auth_token', 'status'])
+
+    return Response({
+        'token': employee.auth_token,
+        'employee_id': employee.id,
+        'name': employee.name,
+        'status': employee.status,
+    })
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register_employee(request):
+    """
+    POST /api/auth/register/ — register a new employee account.
+    Body: {username, password, name, skill_tags (optional list)}
+    Returns: {token, employee_id, name, status}
+    """
+    username = request.data.get('username', '').strip()
+    password = request.data.get('password', '').strip()
+    name = request.data.get('name', '').strip()
+    skill_tags = request.data.get('skill_tags', [])
+
+    # Validate required fields
+    errors = {}
+    if not username:
+        errors['username'] = 'Username is required.'
+    elif len(username) < 3:
+        errors['username'] = 'Username must be at least 3 characters.'
+    if not password:
+        errors['password'] = 'Password is required.'
+    elif len(password) < 6:
+        errors['password'] = 'Password must be at least 6 characters.'
+    if not name:
+        errors['name'] = 'Display name is required.'
+
+    if errors:
+        return Response({'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Check username uniqueness
+    if Employee.objects.filter(username=username).exists():
+        return Response(
+            {'errors': {'username': 'Username already taken.'}},
+            status=status.HTTP_409_CONFLICT
+        )
+
+    # Validate skill_tags
+    if not isinstance(skill_tags, list):
+        skill_tags = []
+    valid_skills = {'tech', 'cashier', 'greeter', 'stocking', 'customer_service'}
+    skill_tags = [s for s in skill_tags if s in valid_skills]
+
+    # Create employee
+    employee = Employee(
+        username=username,
+        name=name,
+        skill_tags=skill_tags,
+        status='FREE',
+        auth_token=uuid.uuid4().hex,
+    )
+    employee.set_password(password)
+    employee.save()
+
+    return Response({
+        'token': employee.auth_token,
+        'employee_id': employee.id,
+        'name': employee.name,
+        'status': employee.status,
+    }, status=status.HTTP_201_CREATED)

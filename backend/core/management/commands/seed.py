@@ -58,24 +58,28 @@ class Command(BaseCommand):
         z_grocery.adjacency_map = {str(z_electronics.id): 2, str(z_checkout.id): 1}
         z_grocery.save()
 
-        # 2. Create Employees
+        # 2. Create Employees with login credentials
         employees = [
-            {'name': 'Alice (Tech)', 'skills': ['tech']},
-            {'name': 'Bob (Cashier)', 'skills': ['cashier']},
-            {'name': 'Charlie (Greeter)', 'skills': ['greeter']},
-            {'name': 'Diana (Tech, Cashier)', 'skills': ['tech', 'cashier']},
-            {'name': 'Eve (General)', 'skills': []},
-            {'name': 'Frank (General)', 'skills': []},
+            {'name': 'Alice',   'username': 'alice',   'password': 'demo1234', 'skills': ['tech']},
+            {'name': 'Bob',     'username': 'bob',     'password': 'demo1234', 'skills': ['cashier']},
+            {'name': 'Charlie', 'username': 'charlie', 'password': 'demo1234', 'skills': ['greeter']},
+            {'name': 'Diana',   'username': 'diana',   'password': 'demo1234', 'skills': ['tech', 'cashier']},
+            {'name': 'Eve',     'username': 'eve',     'password': 'demo1234', 'skills': []},
+            {'name': 'Frank',   'username': 'frank',   'password': 'demo1234', 'skills': []},
         ]
 
-        for i, emp_data in enumerate(employees):
-            Employee.objects.create(
+        for emp_data in employees:
+            emp = Employee(
                 name=emp_data['name'],
+                username=emp_data['username'],
                 skill_tags=emp_data['skills'],
                 status='FREE',
-                # Using simple predictable tokens for demo (emp1, emp2, ...)
-                auth_token=f'emp{i+1}'
+                auth_token=uuid.uuid4().hex,
             )
+            emp.set_password(emp_data['password'])
+            emp.save()
 
         self.stdout.write(self.style.SUCCESS('Database seeded successfully!'))
-        self.stdout.write('Employee tokens: emp1, emp2, emp3, emp4, emp5, emp6')
+        self.stdout.write('Demo login credentials (password: demo1234 for all):')
+        for emp_data in employees:
+            self.stdout.write(f"  username: {emp_data['username']}")

@@ -14,4 +14,5 @@ router.register(r'tasks', views.TaskViewSet)
 urlpatterns = [
     path('', include(router.urls)),
     path('auth/token/', views.auth_token, name='auth-token'),
+    path('auth/register/', views.register_employee, name='auth-register'),
 ]
