@@ -2,6 +2,7 @@
 Assignment Engine — scores and assigns the best available employee to an alert zone.
 """
 
+import datetime
 import logging
 from django.conf import settings
 from django.utils import timezone
@@ -90,7 +91,7 @@ def find_best_employee(alert_zone, zone_metrics=None, exclude_ids=None):
     # Sort by score descending, then by last_assigned_at ascending (tie-break)
     scored.sort(key=lambda x: (
         -x[1],
-        x[0].last_assigned_at or timezone.datetime.min.replace(tzinfo=timezone.utc)
+        x[0].last_assigned_at or datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
     ))
 
     best_employee, best_score = scored[0]
