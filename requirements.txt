@@ -1,0 +1,17 @@
+# Backend (Django + DRF + Channels)
+Django>=5.1,<6.0
+djangorestframework>=3.15,<4.0
+channels>=4.1,<5.0
+channels-redis>=4.2,<5.0
+daphne>=4.1,<5.0
+redis>=5.0,<6.0
+python-dotenv>=1.0,<2.0
+djangorestframework-simplejwt>=5.3,<6.0
+
+# CV Worker
+opencv-python-headless>=4.9,<5.0
+onnxruntime>=1.17,<2.0
+numpy>=1.26,<3.0
+Pillow>=10.0,<12.0
+schedule>=1.2,<2.0
+ultralytics>=8.3,<9.0

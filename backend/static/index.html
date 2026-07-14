@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Smart Reallocation System</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <meta name="theme-color" content="#111111">
+</head>
+<body>
+    <header>
+        <h1 id="app-title">SRS</h1>
+        <div id="status-indicator" class="status-offline">Offline</div>
+    </header>
+
+    <main id="app-container">
+        <!-- Views will be injected here by app.js -->
+        <div id="loading-view" class="view active">
+            <div class="loader">Loading...</div>
+        </div>
+
+        <div id="login-view" class="view">
+            <h2>Employee Login</h2>
+            <p>Enter your token to connect.</p>
+            <input type="text" id="token-input" placeholder="e.g. emp1">
+            <button id="login-btn">Connect</button>
+        </div>
+
+        <div id="employee-view" class="view">
+            <div class="employee-header">
+                <h2 id="emp-name">Employee Name</h2>
+                <span id="emp-status-badge" class="badge">FREE</span>
+            </div>
+
+            <div class="zone-checkin">
+                <label for="zone-select">Current Zone:</label>
+                <select id="zone-select">
+                    <option value="">-- Not Checked In --</option>
+                    <!-- Options populated via API -->
+                </select>
+            </div>
+
+            <!-- Task Offer Card -->
+            <div id="task-offer-card" class="card hidden">
+                <div class="card-header alert">
+                    <h3>Zone Alert</h3>
+                </div>
+                <div class="card-body">
+                    <p>High density detected in <strong id="offer-zone-name">Zone X</strong>.</p>
+                    <p class="timer">Expires in: <span id="offer-timer">45</span>s</p>
+                </div>
+                <div class="card-actions">
+                    <button id="ack-btn" class="btn-primary">Acknowledge</button>
+                </div>
+            </div>
+
+            <!-- Active Task Panel -->
+            <div id="active-task-panel" class="card hidden">
+                <div class="card-header in-progress">
+                    <h3>Current Assignment</h3>
+                </div>
+                <div class="card-body">
+                    <p>Assigned to: <strong id="active-zone-name">Zone X</strong></p>
+                    <p class="timer">Time elapsed: <span id="active-timer">00:00</span></p>
+                </div>
+                <div class="card-actions">
+                    <button id="complete-btn" class="btn-success">Mark Complete</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="manager-view" class="view">
+            <h2>Manager Dashboard</h2>
+            <div class="dashboard-stats">
+                <div class="stat-box">
+                    <span class="stat-label">Tasks Today</span>
+                    <span class="stat-value" id="mgr-tasks-today">-</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">Avg Response</span>
+                    <span class="stat-value" id="mgr-avg-response">-</span>
+                </div>
+            </div>
+            
+            <h3>Zones</h3>
+            <div id="zones-grid" class="zones-grid">
+                <!-- Zone cards populated here -->
+            </div>
+            
+            <h3>Active Tasks</h3>
+            <div id="active-tasks-list" class="tasks-list">
+                <!-- Active tasks populated here -->
+            </div>
+        </div>
+    </main>
+
+    <!-- IndexedDB helper script (lightweight wrapper) -->
+    <script src="https://cdn.jsdelivr.net/npm/idb@7/build/umd.js"></script>
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/ws.js"></script>
+    <script src="/static/js/employee.js"></script>
+    <script src="/static/js/manager.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/sw.js').then(reg => {
+                    console.log('SW registered:', reg);
+                }).catch(err => {
+                    console.log('SW registration failed:', err);
+                });
+            });
+        }
+    </script>
+</body>
+</html>

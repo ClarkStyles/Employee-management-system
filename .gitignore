@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+venv/
+.venv/
+env/
+
+# Django
+db.sqlite3
+*.log
+staticfiles/
+
+# Environment
+.env
+
+# ONNX model (download via script)
+cv_worker/models/*.onnx
+
+# Snapshots (auto-cleaned)
+snapshots/*.jpg
+!snapshots/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
