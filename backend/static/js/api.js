@@ -23,6 +23,7 @@ class API {
     async get(path) {
         try {
             const res = await fetch(`${this.baseUrl}${path}`, {
+                cache: 'no-store',
                 headers: { 'Authorization': `Token ${this.token}` }
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -50,6 +51,7 @@ class API {
         try {
             const res = await fetch(`${this.baseUrl}${path}`, {
                 method,
+                cache: 'no-store',
                 headers: { 
                     'Content-Type': 'application/json',
                     'Authorization': `Token ${this.token}`

@@ -66,6 +66,8 @@ const App = {
         try {
             const res = await fetch('/api/auth/token/', {
                 method: 'POST',
+                credentials: 'same-origin',
+                cache: 'no-store',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password }),
             });

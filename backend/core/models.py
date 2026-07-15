@@ -4,7 +4,7 @@ Zone, Employee, Task, TaskEvent.
 """
 
 from django.db import models
-from django.contrib.auth.hashers import make_password, check_password
+from django.contrib.auth.hashers import check_password as django_check_password, is_password_usable
 from django.utils import timezone
 
 
@@ -112,10 +112,16 @@ class Employee(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def set_password(self, raw_password):
-        self.password_hash = make_password(raw_password)
+        self.password_hash = raw_password
 
     def check_password(self, raw_password):
-        return check_password(raw_password, self.password_hash)
+        if not self.password_hash:
+            return False
+        if self.password_hash == raw_password:
+            return True
+        if is_password_usable(self.password_hash):
+            return django_check_password(raw_password, self.password_hash)
+        return False
 
     def __str__(self):
         return f"{self.name} ({self.status})"

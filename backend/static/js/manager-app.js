@@ -373,6 +373,7 @@ const MgrApp = {
             document.getElementById('result-title').textContent = 'Employee Created';
             document.getElementById('result-message').textContent = `Employee ${res.data.username} created successfully.`;
             document.getElementById('modal-result').classList.add('active');
+            this.loadRoster();
         } else {
             this.showToast('Failed to add employee: ' + (res.data?.error || 'Unknown error'), 'error');
         }

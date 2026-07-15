@@ -293,12 +293,34 @@
     <script src="/static/js/app.js"></script>
     <script>
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/static/sw.js').then(reg => {
+            window.addEventListener('load', async () => {
+                try {
+                    const reg = await navigator.serviceWorker.register('/static/sw.js');
                     console.log('SW registered:', reg);
-                }).catch(err => {
+
+                    if (reg.waiting) {
+                        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    }
+
+                    reg.addEventListener('updatefound', () => {
+                        const newWorker = reg.installing;
+                        if (newWorker) {
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    console.log('New SW installed; reloading for latest assets.');
+                                    window.location.reload();
+                                }
+                            });
+                        }
+                    });
+
+                    navigator.serviceWorker.addEventListener('controllerchange', () => {
+                        console.log('SW controller changed; reloading.');
+                        window.location.reload();
+                    });
+                } catch (err) {
                     console.log('SW registration failed:', err);
-                });
+                }
             });
         }
     </script>

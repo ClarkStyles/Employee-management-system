@@ -7,7 +7,7 @@ import logging
 from datetime import timedelta
 
 from rest_framework import viewsets, status
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes, authentication_classes
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django.utils import timezone
@@ -226,6 +226,7 @@ class TaskViewSet(viewsets.ModelViewSet):
 
 @csrf_exempt
 @api_view(['POST'])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def auth_token(request):
     """
@@ -269,6 +270,7 @@ def auth_token(request):
 
 
 @api_view(['POST'])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def register_employee(request):
     """
@@ -328,6 +330,7 @@ def register_employee(request):
 
 @csrf_exempt
 @api_view(['POST'])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def manager_login(request):
     """
