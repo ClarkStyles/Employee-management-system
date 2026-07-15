@@ -64,7 +64,42 @@ def transition(task, new_status, details=None):
     )
 
     logger.info(f"Task #{task.id}: {old_status} → {new_status}")
+
+    # On completion, notify manager that employee is now FREE
+    if new_status == 'COMPLETED' and task.assigned_employee:
+        _broadcast_employee_status(
+            task.assigned_employee,
+            status='FREE',
+            task_id=None,
+            zone_id=None,
+            zone_name=None,
+        )
+
     return True
+
+
+def _broadcast_employee_status(employee, status, task_id=None, zone_id=None, zone_name=None, assigned_at=None):
+    """Fire-and-forget broadcast of employee_status_update to manager_updates group."""
+    from channels.layers import get_channel_layer
+    from asgiref.sync import async_to_sync
+    try:
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            'manager_updates',
+            {
+                'type': 'employee_status_update_message',
+                'employee_id': employee.id,
+                'employee_name': employee.name,
+                'status': status,
+                'break_ends_at': None,
+                'current_zone': zone_id,
+                'current_zone_name': zone_name,
+                'task_id': task_id,
+                'assigned_at': assigned_at,
+            }
+        )
+    except Exception as exc:
+        logger.warning(f"Failed to broadcast status update for {employee.name}: {exc}")
 
 
 def check_acknowledgment_timeouts():
@@ -156,6 +191,22 @@ def check_acknowledgment_timeouts():
                     f"Task #{task.id} reassigned: {old_employee.name if old_employee else '?'}"
                     f" → {new_employee.name} (attempt {task.reassignment_count})"
                 )
+
+                # Broadcast: old employee is now FREE
+                if old_employee:
+                    _broadcast_employee_status(
+                        old_employee, status='FREE',
+                        task_id=None, zone_id=None, zone_name=None,
+                    )
+                # Broadcast: new employee is now ASSIGNED
+                _broadcast_employee_status(
+                    new_employee, status='ASSIGNED',
+                    task_id=task.id,
+                    zone_id=task.zone_id,
+                    zone_name=task.zone.name,
+                    assigned_at=timezone.now().isoformat(),
+                )
+
                 actions.append((task, 'REASSIGNED', new_employee))
             else:
                 # No available employees — flag for manager

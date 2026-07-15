@@ -98,9 +98,22 @@ const Employee = {
             if (myTask) {
                 this.currentTaskId = myTask.id;
                 if (myTask.status === 'ASSIGNED') {
-                    this.showOfferCard(myTask.zone_name, 45);
+                    // Compute real remaining seconds from task creation time
+                    const ACK_TIMEOUT = 45; // matches ACK_TIMEOUT_SECONDS
+                    const createdAt = new Date(myTask.created_at).getTime();
+                    const elapsed = Math.floor((Date.now() - createdAt) / 1000);
+                    const remaining = Math.max(0, ACK_TIMEOUT - elapsed);
+                    if (remaining > 0) {
+                        this.showOfferCard(myTask.zone_name, remaining);
+                    } else {
+                        // Already timed out server-side; don't show stale offer
+                        this.currentTaskId = null;
+                    }
                 } else if (myTask.status === 'ACKNOWLEDGED' || myTask.status === 'IN_PROGRESS') {
-                    this.showActiveTask(myTask.zone_name, new Date(myTask.acknowledged_at));
+                    const startTime = myTask.acknowledged_at
+                        ? new Date(myTask.acknowledged_at)
+                        : new Date(myTask.created_at);
+                    this.showActiveTask(myTask.zone_name, startTime);
                 }
             }
         }

@@ -63,6 +63,22 @@ def handle_zone_alert(message_data):
                     'expires_in': settings.ACK_TIMEOUT_SECONDS,
                 }
             )
+
+            # Notify manager dashboard: employee is now ASSIGNED
+            async_to_sync(channel_layer.group_send)(
+                'manager_updates',
+                {
+                    'type': 'employee_status_update_message',
+                    'employee_id': employee.id,
+                    'employee_name': employee.name,
+                    'status': 'ASSIGNED',
+                    'break_ends_at': None,
+                    'current_zone': zone.id,
+                    'current_zone_name': zone.name,
+                    'task_id': task.id,
+                    'assigned_at': task.created_at.isoformat(),
+                }
+            )
         else:
             logger.warning(f"No employees available for zone {zone.name}")
 

@@ -8,6 +8,9 @@ const MgrApp = {
     wsManager: null,
     wsPreview: null,
     zones: [],
+    // Active task tracking: employee_id -> {employee_name, zone_name, status, assigned_at}
+    activeTasks: {},
+    elapsedTimerInterval: null,
 
     init() {
         this.checkAuth();
@@ -242,6 +245,28 @@ const MgrApp = {
         if (res.ok) {
             this.renderZonesGrid(res.data);
         }
+        await this.loadActiveTasks();
+    },
+
+    async loadActiveTasks() {
+        const res = await this.apiCall('/api/tasks/active/');
+        if (!res.ok) return;
+
+        // Rebuild activeTasks map from REST response
+        this.activeTasks = {};
+        for (const task of res.data) {
+            if (!task.assigned_employee) continue;
+            this.activeTasks[task.assigned_employee] = {
+                employee_id: task.assigned_employee,
+                employee_name: task.assigned_employee_name || `Employee #${task.assigned_employee}`,
+                zone_name: task.zone_name || `Zone #${task.zone}`,
+                status: task.status,
+                assigned_at: task.created_at,
+                task_id: task.id,
+            };
+        }
+        this._renderActiveTasksTable();
+        this._startElapsedTimer();
     },
 
     renderZonesGrid(zones) {
@@ -298,6 +323,56 @@ const MgrApp = {
             const online = res.data.filter(e => e.status !== 'OFFLINE' && e.status !== 'ON_BREAK').length;
             document.getElementById('stat-active-staff').textContent = online;
         }
+    },
+
+    // ── Active Tasks Table ──
+
+    _renderActiveTasksTable() {
+        const tbody = document.getElementById('active-tasks-tbody');
+        const empty = document.getElementById('active-tasks-empty');
+        const countEl = document.getElementById('active-tasks-count');
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+        const rows = Object.values(this.activeTasks);
+
+        if (countEl) countEl.textContent = rows.length;
+
+        if (rows.length === 0) {
+            if (empty) empty.style.display = '';
+            return;
+        }
+        if (empty) empty.style.display = 'none';
+
+        for (const t of rows) {
+            const tr = document.createElement('tr');
+            tr.id = `active-row-${t.employee_id}`;
+            tr.innerHTML = `
+                <td style="font-weight:500; color:white;">${t.employee_name}</td>
+                <td style="color:var(--text-muted);">${t.zone_name || '—'}</td>
+                <td><span class="badge badge-${t.status}">${t.status.replace('_', ' ')}</span></td>
+                <td><span class="elapsed-value" data-assigned-at="${t.assigned_at || ''}">—</span></td>
+            `;
+            tbody.appendChild(tr);
+        }
+        this._tickElapsed();
+    },
+
+    _tickElapsed() {
+        document.querySelectorAll('.elapsed-value').forEach(el => {
+            const assignedAt = el.dataset.assignedAt;
+            if (!assignedAt) { el.textContent = '—'; return; }
+            const elapsed = Math.floor((Date.now() - new Date(assignedAt).getTime()) / 1000);
+            if (elapsed < 0) { el.textContent = '—'; return; }
+            const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+            const s = String(elapsed % 60).padStart(2, '0');
+            el.textContent = `${m}:${s}`;
+        });
+    },
+
+    _startElapsedTimer() {
+        if (this.elapsedTimerInterval) clearInterval(this.elapsedTimerInterval);
+        this.elapsedTimerInterval = setInterval(() => this._tickElapsed(), 1000);
     },
 
     // ── Roster Page ──
@@ -437,14 +512,33 @@ const MgrApp = {
     },
 
     updateEmployeeStatusUI(data) {
-        // Update roster badge if exists
+        const ACTIVE_STATUSES = ['ASSIGNED', 'ACKNOWLEDGED', 'IN_PROGRESS'];
+
+        // ── Active Assignments panel ──────────────────────────────────────
+        if (ACTIVE_STATUSES.includes(data.status)) {
+            // Upsert this employee in the active tasks map
+            this.activeTasks[data.employee_id] = {
+                employee_id: data.employee_id,
+                employee_name: data.employee_name || `Employee #${data.employee_id}`,
+                zone_name: data.current_zone_name || '—',
+                status: data.status,
+                assigned_at: data.assigned_at || new Date().toISOString(),
+                task_id: data.task_id,
+            };
+        } else {
+            // FREE / OFFLINE / ON_BREAK — remove from active panel
+            delete this.activeTasks[data.employee_id];
+        }
+        this._renderActiveTasksTable();
+
+        // ── Roster badge ─────────────────────────────────────────────────
         const rBadge = document.getElementById(`roster-status-${data.employee_id}`);
         if (rBadge) {
             rBadge.textContent = data.status === 'ON_BREAK' ? '☕ ON BREAK' : data.status;
             rBadge.className = `badge badge-${data.status}`;
         }
-        
-        // Update analytics break column if exists
+
+        // ── Analytics break column ───────────────────────────────────────
         const aBreak = document.getElementById(`analytics-break-${data.employee_id}`);
         if (aBreak) {
             if (data.status === 'ON_BREAK' && data.break_ends_at) {

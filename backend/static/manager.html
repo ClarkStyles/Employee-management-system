@@ -198,6 +198,28 @@
                     </div>
                     <h3 class="section-title" style="margin-top: 32px;">Zone Overview</h3>
                     <div id="zones-grid" class="zones-grid"></div>
+
+                    <!-- Active Assignments Panel -->
+                    <h3 class="section-title" style="margin-top: 40px; display:flex; align-items:center; gap:10px;">
+                        Active Assignments
+                        <span id="active-tasks-count" style="font-size:0.8rem; font-weight:500; background:rgba(99,102,241,0.15); color:var(--accent-primary); padding:2px 10px; border-radius:20px;">0</span>
+                    </h3>
+                    <div class="card" style="padding:0; overflow:hidden;">
+                        <table class="data-table" id="active-tasks-table">
+                            <thead>
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Zone</th>
+                                    <th>Status</th>
+                                    <th>Elapsed</th>
+                                </tr>
+                            </thead>
+                            <tbody id="active-tasks-tbody">
+                                <!-- populated by JS -->
+                            </tbody>
+                        </table>
+                        <p id="active-tasks-empty" style="text-align:center; color:var(--text-muted); padding:24px; margin:0; font-size:0.9rem;">No active assignments right now</p>
+                    </div>
                 </div>
 
                 <!-- ROSTER PAGE -->

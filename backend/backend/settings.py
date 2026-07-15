@@ -95,6 +95,9 @@ CHANNEL_LAYERS = {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
             'hosts': [(REDIS_HOST, REDIS_PORT)],
+            # Redis 5.x (bundled binary) does not support RESP3 (HELLO 3).
+            # Force RESP2 protocol to avoid "unknown command HELLO" errors.
+            'protocol_version': 2,
         },
     },
 }

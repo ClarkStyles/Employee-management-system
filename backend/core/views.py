@@ -29,6 +29,7 @@ class ZoneViewSet(viewsets.ModelViewSet):
     queryset = Zone.objects.all()
     serializer_class = ZoneSerializer
     permission_classes = [AllowAny]
+    pagination_class = None
 
     @action(detail=False, methods=['get'], url_path='status')
     def zone_status(self, request):
@@ -41,6 +42,7 @@ class ZoneViewSet(viewsets.ModelViewSet):
 class EmployeeViewSet(viewsets.ModelViewSet):
     serializer_class = EmployeeSerializer
     permission_classes = [AllowAny]
+    pagination_class = None
 
     def get_queryset(self):
         """Only return active employees by default."""

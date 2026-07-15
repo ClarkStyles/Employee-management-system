@@ -57,12 +57,30 @@ class EmployeeConsumer(AsyncWebsocketConsumer):
 
         await self.accept()
 
-        # Set employee online
-        await self._set_employee_status('FREE')
+        # Only set FREE if coming from OFFLINE — do NOT clobber active assignments
+        # or an in-progress break on reconnect.
+        connect_ctx = await self._get_and_set_status_on_connect()
 
-        logger.info(f"WebSocket connected: {self.employee.name}")
+        logger.info(
+            f"WebSocket connected: {self.employee.name} "
+            f"(was={connect_ctx['prev_status']} → now={connect_ctx['new_status']})"
+        )
 
-        # Send current status
+        if connect_ctx['changed']:
+            await self.channel_layer.group_send(
+                'manager_updates',
+                {
+                    'type': 'employee_status_update_message',
+                    'employee_id': self.employee_id,
+                    'status': connect_ctx['new_status'],
+                    'break_ends_at': None,
+                    'current_zone': connect_ctx['current_zone_id'],
+                    'current_zone_name': connect_ctx['current_zone_name'],
+                    'task_id': connect_ctx['task_id'],
+                }
+            )
+
+        # Send current status to this client
         await self.send(text_data=json.dumps({
             'type': 'status_update',
             'status': 'connected',
@@ -81,11 +99,34 @@ class EmployeeConsumer(AsyncWebsocketConsumer):
                 "zone_updates",
                 self.channel_name
             )
-        logger.info(
-            f"WebSocket disconnected: "
-            f"{self.employee.name if self.employee else 'unknown'} "
-            f"(code={close_code})"
-        )
+
+        # Only go OFFLINE if the employee was FREE — preserve active assignments
+        # and breaks; their own timeout/expiry checkers handle the "genuinely gone" case.
+        if hasattr(self, 'employee_id'):
+            disconnect_ctx = await self._get_and_set_status_on_disconnect()
+            logger.info(
+                f"WebSocket disconnected: "
+                f"{self.employee.name if self.employee else 'unknown'} "
+                f"(was={disconnect_ctx['prev_status']} → now={disconnect_ctx['new_status']}, "
+                f"code={close_code})"
+            )
+            if disconnect_ctx['changed']:
+                await self.channel_layer.group_send(
+                    'manager_updates',
+                    {
+                        'type': 'employee_status_update_message',
+                        'employee_id': self.employee_id,
+                        'status': 'OFFLINE',
+                        'break_ends_at': None,
+                        'current_zone': None,
+                        'current_zone_name': None,
+                        'task_id': None,
+                    }
+                )
+        else:
+            logger.info(
+                f"WebSocket disconnected (pre-auth): code={close_code}"
+            )
 
     async def receive(self, text_data):
         """Handle messages from the client."""
@@ -133,6 +174,23 @@ class EmployeeConsumer(AsyncWebsocketConsumer):
             'task_status': result.get('task_status'),
         }))
 
+        # Notify manager: employee transitioned to IN_PROGRESS
+        if result['success']:
+            await self.channel_layer.group_send(
+                'manager_updates',
+                {
+                    'type': 'employee_status_update_message',
+                    'employee_id': self.employee_id,
+                    'employee_name': self.employee.name,
+                    'status': 'IN_PROGRESS',
+                    'break_ends_at': None,
+                    'current_zone': result.get('zone_id'),
+                    'current_zone_name': result.get('zone_name'),
+                    'task_id': task_id,
+                    'assigned_at': result.get('assigned_at'),
+                }
+            )
+
     async def _handle_complete(self, data):
         """Employee marks a task as complete."""
         task_id = data.get('task_id')
@@ -148,16 +206,32 @@ class EmployeeConsumer(AsyncWebsocketConsumer):
             'message': result['message'],
         }))
 
-        # Broadcast zone update
-        if result['success'] and result.get('zone_id'):
+        if result['success']:
+            # Broadcast zone update
+            if result.get('zone_id'):
+                await self.channel_layer.group_send(
+                    "zone_updates",
+                    {
+                        'type': 'zone_update_message',
+                        'zone_id': result['zone_id'],
+                        'zone_name': result.get('zone_name', ''),
+                        'state': result.get('zone_state', 'NORMAL'),
+                        'density': result.get('density', 0),
+                    }
+                )
+            # Notify manager: employee is now FREE, remove from active tasks panel
             await self.channel_layer.group_send(
-                "zone_updates",
+                'manager_updates',
                 {
-                    'type': 'zone_update_message',
-                    'zone_id': result['zone_id'],
-                    'zone_name': result.get('zone_name', ''),
-                    'state': result.get('zone_state', 'NORMAL'),
-                    'density': result.get('density', 0),
+                    'type': 'employee_status_update_message',
+                    'employee_id': self.employee_id,
+                    'employee_name': self.employee.name,
+                    'status': 'FREE',
+                    'break_ends_at': None,
+                    'current_zone': None,
+                    'current_zone_name': None,
+                    'task_id': None,
+                    'assigned_at': None,
                 }
             )
 
@@ -267,12 +341,60 @@ class EmployeeConsumer(AsyncWebsocketConsumer):
             'employee_id': event['employee_id'],
             'status': event['status'],
             'break_ends_at': event.get('break_ends_at'),
+            'current_zone': event.get('current_zone'),
+            'current_zone_name': event.get('current_zone_name'),
+            'task_id': event.get('task_id'),
         }))
 
     # ---- Database operations ----
 
     @database_sync_to_async
+    def _get_and_set_status_on_connect(self):
+        """Read current status; transition OFFLINE→FREE if needed. Returns context dict."""
+        from core.models import Employee, Task
+        emp = Employee.objects.select_related('current_zone').get(id=self.employee_id)
+        prev = emp.status
+        changed = False
+        if emp.status == 'OFFLINE':
+            emp.status = 'FREE'
+            emp.save(update_fields=['status'])
+            changed = True
+
+        # Look up active task for broadcast context
+        active_task = Task.objects.filter(
+            assigned_employee_id=self.employee_id,
+            status__in=['ASSIGNED', 'ACKNOWLEDGED', 'IN_PROGRESS'],
+        ).order_by('-created_at').first()
+
+        return {
+            'changed': changed,
+            'prev_status': prev,
+            'new_status': emp.status,
+            'current_zone_id': emp.current_zone_id,
+            'current_zone_name': emp.current_zone.name if emp.current_zone else None,
+            'task_id': active_task.id if active_task else None,
+        }
+
+    @database_sync_to_async
+    def _get_and_set_status_on_disconnect(self):
+        """Read current status; transition FREE→OFFLINE if needed. Returns context dict."""
+        from core.models import Employee
+        emp = Employee.objects.get(id=self.employee_id)
+        prev = emp.status
+        changed = False
+        if emp.status == 'FREE':
+            emp.status = 'OFFLINE'
+            emp.save(update_fields=['status'])
+            changed = True
+        return {
+            'changed': changed,
+            'prev_status': prev,
+            'new_status': emp.status,
+        }
+
+    @database_sync_to_async
     def _set_employee_status(self, status):
+        """Legacy helper kept for internal use (break handlers)."""
         from core.models import Employee
         Employee.objects.filter(id=self.employee_id).update(status=status)
 
@@ -282,7 +404,9 @@ class EmployeeConsumer(AsyncWebsocketConsumer):
         from core.state_machine import transition
 
         try:
-            task = Task.objects.get(id=task_id, assigned_employee_id=self.employee_id)
+            task = Task.objects.select_related('zone').get(
+                id=task_id, assigned_employee_id=self.employee_id
+            )
         except Task.DoesNotExist:
             return {'success': False, 'message': 'Task not found or not assigned to you'}
 
@@ -301,6 +425,9 @@ class EmployeeConsumer(AsyncWebsocketConsumer):
                 'success': True,
                 'message': 'Task acknowledged and in progress',
                 'task_status': 'IN_PROGRESS',
+                'zone_id': task.zone_id,
+                'zone_name': task.zone.name,
+                'assigned_at': task.created_at.isoformat(),
             }
         return {'success': False, 'message': 'Failed to acknowledge task'}
 
@@ -450,6 +577,11 @@ class ManagerConsumer(AsyncWebsocketConsumer):
             'employee_id': event['employee_id'],
             'status': event['status'],
             'break_ends_at': event.get('break_ends_at'),
+            'current_zone': event.get('current_zone'),
+            'current_zone_name': event.get('current_zone_name'),
+            'task_id': event.get('task_id'),
+            'employee_name': event.get('employee_name'),
+            'assigned_at': event.get('assigned_at'),
         }))
 
     async def zone_update_message(self, event):
