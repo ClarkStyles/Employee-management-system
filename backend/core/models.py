@@ -82,10 +82,22 @@ class Employee(models.Model):
     STATUS_CHOICES = [
         ('FREE', 'Free'),
         ('ASSIGNED', 'Assigned'),
+        ('ACKNOWLEDGED', 'Acknowledged'),
+        ('IN_PROGRESS', 'In Progress'),
+        ('ON_BREAK', 'On Break'),
         ('BUSY', 'Busy'),
         ('OFFLINE', 'Offline'),
     ]
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='OFFLINE')
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='OFFLINE')
+
+    # Break management
+    break_ends_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the current break expires (status=ON_BREAK)"
+    )
+
+    # Soft delete — inactive employees excluded from assignment pool
+    is_active = models.BooleanField(default=True)
 
     current_zone = models.ForeignKey(
         Zone, null=True, blank=True,

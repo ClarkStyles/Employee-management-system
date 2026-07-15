@@ -131,8 +131,10 @@ def check_acknowledgment_timeouts():
                     task=task,
                     event_type='ESCALATED',
                     details={
-                        'old_employee': old_employee.name if old_employee else None,
-                        'new_employee': new_employee.name,
+                        'missed_employee_id': old_employee.id if old_employee else None,
+                        'missed_employee_name': old_employee.name if old_employee else None,
+                        'reassigned_to': new_employee.id,
+                        'reassigned_to_name': new_employee.name,
                         'reassignment_count': task.reassignment_count,
                     },
                 )
@@ -190,3 +192,54 @@ def check_acknowledgment_timeouts():
             actions.append((task, 'MANAGER_FLAGGED', None))
 
     return actions
+
+
+def check_break_expiry():
+    """
+    Find employees whose break timer has expired and return them to FREE status.
+    Broadcasts employee_status_update to the manager_updates group.
+
+    Returns:
+        int: Number of employees whose breaks were expired.
+    """
+    from channels.layers import get_channel_layer
+    from asgiref.sync import async_to_sync
+
+    expired = Employee.objects.filter(
+        status='ON_BREAK',
+        break_ends_at__lte=timezone.now(),
+    )
+
+    count = 0
+    channel_layer = get_channel_layer()
+
+    for employee in expired:
+        employee.status = 'FREE'
+        employee.break_ends_at = None
+        employee.save(update_fields=['status', 'break_ends_at'])
+        logger.info(f"Break expired: {employee.name} → FREE")
+
+        # Notify the employee's own WS session
+        async_to_sync(channel_layer.group_send)(
+            f"employee_{employee.id}",
+            {
+                'type': 'employee_status_update_message',
+                'employee_id': employee.id,
+                'status': 'FREE',
+                'break_ends_at': None,
+            }
+        )
+
+        # Notify manager group
+        async_to_sync(channel_layer.group_send)(
+            'manager_updates',
+            {
+                'type': 'employee_status_update_message',
+                'employee_id': employee.id,
+                'status': 'FREE',
+                'break_ends_at': None,
+            }
+        )
+        count += 1
+
+    return count

@@ -92,13 +92,16 @@ class ReconnectingWebSocket {
     }
     
     _updateStatus(status, text) {
-        if (!this.statusIndicator) return;
-        this.statusIndicator.textContent = text;
-        this.statusIndicator.className = `status-${status}`;
+        const indicator = document.getElementById('status-indicator');
+        const label = document.getElementById('status-label');
+        if (!indicator) return;
+
+        if (label) label.textContent = text;
+        indicator.className = `status-pill status-${status}`;
         
         if (status === 'online') {
             this.drainOfflineQueue();
-            window.api.drainQueue();
+            if (window.api) window.api.drainQueue();
         }
     }
 }

@@ -99,7 +99,7 @@ def simulate(zone_id, ramp_to, duration):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--zone", type=str, default="2", help="Zone ID (default: 2 - Electronics)")
+    parser.add_argument("--zone", type=str, default="2", help="Zone ID (default: 2 - Electronics). Use backend seed IDs 1-4 for demo mode.")
     parser.add_argument("--ramp-to", type=int, default=15, help="Peak person count")
     parser.add_argument("--duration", type=int, default=20, help="Total duration in seconds")
     args = parser.parse_args()

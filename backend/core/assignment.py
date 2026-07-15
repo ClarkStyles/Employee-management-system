@@ -77,7 +77,7 @@ def find_best_employee(alert_zone, zone_metrics=None, exclude_ids=None):
     4. Return (employee, score) or (None, 0)
     """
     exclude_ids = exclude_ids or []
-    candidates = Employee.objects.filter(status='FREE').exclude(id__in=exclude_ids)
+    candidates = Employee.objects.filter(status='FREE', is_active=True).exclude(id__in=exclude_ids)
 
     if not candidates.exists():
         logger.warning(f"No FREE employees available for zone {alert_zone.name}")

@@ -102,6 +102,7 @@ CHANNEL_LAYERS = {
 # DRF configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
         'core.middleware.TokenAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -123,3 +124,11 @@ HYSTERESIS_WINDOW_SECONDS = int(os.getenv('HYSTERESIS_WINDOW_SECONDS', 60))
 
 # Snapshot directory
 SNAPSHOT_DIR = Path(os.getenv('SNAPSHOT_DIR', BASE_DIR.parent / 'snapshots'))
+
+# Session cookie settings (needed for manager portal WS auth)
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = 'Lax'
+
+# Allow CORS for dev (manager portal on same origin, so not needed for prod)
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'

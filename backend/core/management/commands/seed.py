@@ -20,6 +20,7 @@ class Command(BaseCommand):
         }
 
         z_entrance = Zone.objects.create(
+            id=1,
             name='Entrance',
             threshold_config=threshold_config,
             hysteresis_window=30,
@@ -27,6 +28,7 @@ class Command(BaseCommand):
             adjacency_map={"2": 1, "3": 2}  # Assume ID mapping will be updated
         )
         z_electronics = Zone.objects.create(
+            id=2,
             name='Electronics',
             threshold_config=threshold_config,
             hysteresis_window=30,
@@ -34,6 +36,7 @@ class Command(BaseCommand):
             adjacency_map={"1": 1, "3": 1, "4": 2}
         )
         z_checkout = Zone.objects.create(
+            id=3,
             name='Checkout',
             threshold_config=threshold_config,
             hysteresis_window=30,
@@ -41,6 +44,7 @@ class Command(BaseCommand):
             adjacency_map={"1": 2, "2": 1, "4": 1}
         )
         z_grocery = Zone.objects.create(
+            id=4,
             name='Grocery',
             threshold_config=threshold_config,
             hysteresis_window=30,

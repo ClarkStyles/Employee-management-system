@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manager Portal — Smart Reallocation System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <meta name="theme-color" content="#0d0f1a">
+    <style>
+        /* Manager-specific layout overrides */
+        body { margin: 0; padding: 0; overflow-x: hidden; }
+        .manager-layout {
+            display: flex;
+            min-height: 100vh;
+            background: var(--bg-color);
+        }
+        .manager-sidebar {
+            width: 260px;
+            background: var(--card-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 24px 0;
+            z-index: 10;
+        }
+        .sidebar-brand {
+            padding: 0 24px 24px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .sidebar-brand h1 { font-size: 1.1rem; margin: 0; color: #fff; }
+        .sidebar-brand p { font-size: 0.8rem; color: var(--text-muted); margin: 4px 0 0; }
+        
+        .sidebar-nav { flex-grow: 1; display: flex; flex-direction: column; gap: 8px; padding: 0 16px; }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            width: 100%;
+            text-align: left;
+            font-family: inherit;
+            font-size: 0.95rem;
+        }
+        .nav-item:hover { background: rgba(255,255,255,0.05); color: #fff; }
+        .nav-item.active { background: rgba(99,102,241,0.15); color: var(--accent-primary); font-weight: 600; }
+        .nav-icon { width: 20px; height: 20px; }
+        
+        .sidebar-footer { padding: 24px; border-top: 1px solid var(--border-color); }
+        .manager-main { flex-grow: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        .manager-header-bar {
+            height: 70px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 32px;
+            background: var(--bg-color);
+            flex-shrink: 0;
+        }
+        .page-title { font-size: 1.25rem; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 12px; }
+        .manager-content { flex-grow: 1; overflow-y: auto; padding: 32px; }
+        
+        /* Tables */
+        .data-table { width: 100%; border-collapse: collapse; text-align: left; margin-top: 16px; }
+        .data-table th { padding: 12px 16px; border-bottom: 1px solid var(--border-color); color: var(--text-muted); font-weight: 500; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .data-table td { padding: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); vertical-align: middle; }
+        .data-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+        
+        /* Modals */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        .modal-overlay.active { opacity: 1; pointer-events: auto; }
+        .modal-content { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; width: 100%; max-width: 480px; padding: 32px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); transform: translateY(20px); transition: transform 0.3s; }
+        .modal-overlay.active .modal-content { transform: translateY(0); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .modal-header h3 { margin: 0; font-size: 1.25rem; }
+        
+        /* Analytics */
+        .progress-bar-bg { width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; }
+        .progress-bar-fill { height: 100%; background: var(--accent-primary); border-radius: 4px; transition: width 0.5s ease-out; }
+        
+        /* CV Preview */
+        .preview-container { display: flex; flex-direction: column; align-items: center; gap: 24px; }
+        .preview-controls { display: flex; gap: 16px; align-items: center; width: 100%; max-width: 800px; background: var(--card-bg); padding: 16px 24px; border-radius: 12px; border: 1px solid var(--border-color); }
+        .preview-frame-wrapper { width: 100%; max-width: 800px; background: #000; border-radius: 12px; overflow: hidden; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; position: relative; border: 1px solid var(--border-color); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .preview-img { width: 100%; height: 100%; object-fit: contain; }
+        .preview-placeholder { color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 12px; }
+        .preview-overlay-status { position: absolute; top: 16px; right: 16px; background: rgba(0,0,0,0.7); padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 8px; backdrop-filter: blur(4px); }
+        
+        /* Break badge */
+        .badge-ON_BREAK { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
+        
+        /* Auth View Override */
+        #auth-view { position: fixed; inset: 0; z-index: 50; }
+        
+        /* Utility */
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <!-- ──────────────── AUTH VIEW ──────────────── -->
+    <div id="auth-view" class="view active">
+        <div class="auth-card">
+            <div class="auth-brand">
+                <div class="brand-text">
+                    <h1>Manager Portal</h1>
+                    <p>Secure Access</p>
+                </div>
+            </div>
+            <form id="mgr-login-form" class="auth-form active">
+                <div id="mgr-login-error" class="form-error hidden"></div>
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="mgr-username" class="input-wrapper" style="width:100%; padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: white; border-radius: 8px;" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="mgr-password" class="input-wrapper" style="width:100%; padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: white; border-radius: 8px;" required>
+                </div>
+                <button type="submit" id="mgr-login-btn" class="btn-primary btn-full">Login to Dashboard</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ──────────────── APP LAYOUT ──────────────── -->
+    <div id="app-view" class="manager-layout view hidden">
+        
+        <!-- Sidebar -->
+        <aside class="manager-sidebar">
+            <div class="sidebar-brand">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="2"><path d="M12 2L2 7L12 12L22 7L12 2Z"/><path d="M2 17L12 22L22 17"/><path d="M2 12L12 17L22 12"/></svg>
+                <div>
+                    <h1>Smart Reallocation</h1>
+                    <p>Manager Portal</p>
+                </div>
+            </div>
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-page="dashboard">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+                    Dashboard
+                </button>
+                <button class="nav-item" data-page="roster">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    Roster
+                </button>
+                <button class="nav-item" data-page="analytics">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+                    Analytics
+                </button>
+                <button class="nav-item" data-page="preview">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    Live Preview
+                </button>
+            </nav>
+            <div class="sidebar-footer">
+                <div style="margin-bottom: 16px; font-size: 0.9rem; color: var(--text-muted);">Logged in as <strong id="mgr-display-name" style="color:white;">Admin</strong></div>
+                <button id="mgr-logout-btn" class="btn-full" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: white; padding: 10px; border-radius: 8px; cursor: pointer;">Sign Out</button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="manager-main">
+            <header class="manager-header-bar">
+                <h2 id="page-title" class="page-title">Dashboard</h2>
+                <div class="live-badge">● LIVE</div>
+            </header>
+
+            <div class="manager-content">
+                
+                <!-- DASHBOARD PAGE -->
+                <div id="page-dashboard" class="page-section">
+                    <div class="dashboard-stats">
+                        <div class="stat-box">
+                            <span class="stat-value" id="stat-active-staff">—</span>
+                            <span class="stat-label">Online Staff</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-value" id="stat-alert-zones">—</span>
+                            <span class="stat-label">Alert Zones</span>
+                        </div>
+                    </div>
+                    <h3 class="section-title" style="margin-top: 32px;">Zone Overview</h3>
+                    <div id="zones-grid" class="zones-grid"></div>
+                </div>
+
+                <!-- ROSTER PAGE -->
+                <div id="page-roster" class="page-section hidden">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                        <h3 style="margin:0;">Employee Roster</h3>
+                        <button class="btn-primary" onclick="MgrApp.showAddEmployeeModal()">+ Add Employee</button>
+                    </div>
+                    <div class="card" style="padding: 0; overflow: hidden;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Status</th>
+                                    <th>Current Zone</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="roster-tbody">
+                                <!-- Roster populated via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ANALYTICS PAGE -->
+                <div id="page-analytics" class="page-section hidden">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                        <h3 style="margin:0;">Performance & Breaks</h3>
+                        <select id="analytics-range" class="input-wrapper" style="padding: 8px 12px; background: var(--bg-color); color: white; border: 1px solid var(--border-color); border-radius: 6px;">
+                            <option value="today">Today</option>
+                            <option value="7d">Last 7 Days</option>
+                        </select>
+                    </div>
+                    <div class="card" style="padding: 0; overflow: hidden; margin-bottom: 32px;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Break Status</th>
+                                    <th>Ack Count</th>
+                                    <th>Missed</th>
+                                    <th>Ack Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody id="analytics-tbody">
+                                <!-- Analytics populated via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- PREVIEW PAGE -->
+                <div id="page-preview" class="page-section hidden">
+                    <div class="preview-container">
+                        <div class="preview-controls">
+                            <label style="font-weight: 500; color: var(--text-muted);">Select Zone Feed:</label>
+                            <select id="preview-zone-select" class="input-wrapper" style="flex-grow: 1; padding: 10px; background: var(--bg-color); color: white; border: 1px solid var(--border-color); border-radius: 6px;">
+                                <option value="">— Select a Zone —</option>
+                            </select>
+                        </div>
+                        <div class="preview-frame-wrapper">
+                            <div id="preview-placeholder" class="preview-placeholder">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12C2 12 5 5 12 5C19 5 22 12 22 12C22 12 19 19 12 19C5 19 2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                                <span>Select a zone to view live CV feed</span>
+                            </div>
+                            <img id="preview-img" class="preview-img hidden" src="" alt="Live feed">
+                            <div id="preview-status" class="preview-overlay-status hidden">
+                                <div class="active-dot-pulse" style="width:8px; height:8px; margin:0;"></div>
+                                <span id="preview-fps">0 FPS</span>
+                            </div>
+                        </div>
+                        <p style="color: var(--text-muted); font-size: 0.9rem; max-width: 800px; text-align: center;">
+                            Frames are heavily compressed and annotated directly by the CV worker. Feed will pause automatically if you navigate away.
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-add-emp" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Employee</h3>
+                <button class="btn-icon" onclick="MgrApp.closeModal('modal-add-emp')">✕</button>
+            </div>
+            <form id="form-add-emp">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="add-emp-name" class="input-wrapper" style="width:100%; padding:10px; background:rgba(0,0,0,0.2); border:1px solid var(--border-color); color:white; border-radius:6px;" required>
+                </div>
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="add-emp-username" class="input-wrapper" placeholder="Enter username (optional)" style="width:100%; padding:10px; background:rgba(0,0,0,0.2); border:1px solid var(--border-color); color:white; border-radius:6px;">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="add-emp-password" class="input-wrapper" placeholder="Set password" style="width:100%; padding:10px; background:rgba(0,0,0,0.2); border:1px solid var(--border-color); color:white; border-radius:6px;" required>
+                </div>
+                <div class="form-group">
+                    <label>Skill Tags (comma separated)</label>
+                    <input type="text" id="add-emp-skills" class="input-wrapper" placeholder="e.g. tech, cashier" style="width:100%; padding:10px; background:rgba(0,0,0,0.2); border:1px solid var(--border-color); color:white; border-radius:6px;">
+                </div>
+                <button type="submit" class="btn-primary btn-full" style="margin-top: 16px;">Create Account</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-result" class="modal-overlay">
+        <div class="modal-content" style="text-align: center;">
+            <h3 id="result-title">Employee Created</h3>
+            <p id="result-message" style="color: var(--text-muted); margin-bottom: 24px;">Employee account created successfully.</p>
+            <button class="btn-primary btn-full" onclick="MgrApp.closeModal('modal-result'); MgrApp.loadRoster();">Done</button>
+        </div>
+    </div>
+
+    <script src="/static/js/manager-app.js"></script>
+</body>
+</html>

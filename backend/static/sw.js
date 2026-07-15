@@ -1,4 +1,4 @@
-const CACHE_NAME = 'srs-cache-v1';
+const CACHE_NAME = 'srs-cache-v2';
 const API_QUEUE = 'srs-api-queue';
 
 const APP_SHELL = [

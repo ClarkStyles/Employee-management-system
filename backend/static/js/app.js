@@ -1,6 +1,6 @@
 /**
  * app.js — Main application controller.
- * Handles routing, auth (login + register), tab switching.
+ * Handles routing, auth (login only — registration is manager-provisioned).
  */
 
 const App = {
@@ -12,7 +12,6 @@ const App = {
 
         // Form submit bindings
         document.getElementById('login-form').addEventListener('submit', (e) => { e.preventDefault(); this.login(); });
-        document.getElementById('register-form').addEventListener('submit', (e) => { e.preventDefault(); this.register(); });
         document.getElementById('logout-btn').addEventListener('click', () => this.logout());
 
         window.addEventListener('hashchange', () => this.handleRouting());
@@ -35,14 +34,6 @@ const App = {
     },
 
     async handleRouting() {
-        const hash = window.location.hash;
-
-        if (hash === '#manager') {
-            this.showView('manager-view');
-            Manager.init();
-            return;
-        }
-
         if (this.token) {
             this.showView('loading-view');
             const empData = await api.get('/employees/me/');
@@ -56,36 +47,6 @@ const App = {
         } else {
             this.showView('auth-view');
         }
-    },
-
-    // ── Tab Switching ──
-    showTab(tab) {
-        const loginForm = document.getElementById('login-form');
-        const registerForm = document.getElementById('register-form');
-        const tabLogin = document.getElementById('tab-login');
-        const tabRegister = document.getElementById('tab-register');
-        const tabsEl = document.querySelector('.auth-tabs');
-
-        if (tab === 'login') {
-            loginForm.classList.add('active');
-            registerForm.classList.remove('active');
-            tabLogin.classList.add('active');
-            tabLogin.setAttribute('aria-selected', 'true');
-            tabRegister.classList.remove('active');
-            tabRegister.setAttribute('aria-selected', 'false');
-            tabsEl.classList.remove('on-register');
-        } else {
-            registerForm.classList.add('active');
-            loginForm.classList.remove('active');
-            tabRegister.classList.add('active');
-            tabRegister.setAttribute('aria-selected', 'true');
-            tabLogin.classList.remove('active');
-            tabLogin.setAttribute('aria-selected', 'false');
-            tabsEl.classList.add('on-register');
-        }
-        // Clear errors on tab switch
-        document.getElementById('login-error').classList.add('hidden');
-        document.getElementById('register-error').classList.add('hidden');
     },
 
     // ── Login ──
@@ -113,69 +74,10 @@ const App = {
             if (res.ok) {
                 api.setToken(data.token);
                 this.token = data.token;
-                this.toast(`Welcome back, ${data.name}! 👋`, 'success');
+                this.showToast(`Welcome back, ${data.name}! 👋`, 'success');
                 this.handleRouting();
             } else {
                 this._showFormError(errorEl, data.error || 'Login failed.');
-            }
-        } catch {
-            this._showFormError(errorEl, 'Network error. Check your connection.');
-        } finally {
-            this._setLoading(btn, false);
-        }
-    },
-
-    // ── Register ──
-    async register() {
-        const name = document.getElementById('reg-name').value.trim();
-        const username = document.getElementById('reg-username').value.trim();
-        const password = document.getElementById('reg-password').value;
-        const confirm = document.getElementById('reg-confirm').value;
-        const btn = document.getElementById('register-btn');
-        const errorEl = document.getElementById('register-error');
-
-        errorEl.classList.add('hidden');
-
-        // Client-side validation
-        if (!name || !username || !password || !confirm) {
-            this._showFormError(errorEl, 'All fields except Skills are required.');
-            return;
-        }
-        if (username.length < 3) {
-            this._showFormError(errorEl, 'Username must be at least 3 characters.');
-            return;
-        }
-        if (password.length < 6) {
-            this._showFormError(errorEl, 'Password must be at least 6 characters.');
-            return;
-        }
-        if (password !== confirm) {
-            this._showFormError(errorEl, 'Passwords do not match.');
-            return;
-        }
-
-        // Collect selected skills
-        const skillChecks = document.querySelectorAll('#register-form .skill-chip input:checked');
-        const skill_tags = Array.from(skillChecks).map(c => c.value);
-
-        this._setLoading(btn, true);
-        try {
-            const res = await fetch('/api/auth/register/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, username, password, skill_tags }),
-            });
-            const data = await res.json();
-
-            if (res.ok || res.status === 201) {
-                api.setToken(data.token);
-                this.token = data.token;
-                this.toast(`Account created! Welcome, ${data.name}! 🎉`, 'success');
-                this.handleRouting();
-            } else {
-                const errors = data.errors || {};
-                const msg = Object.values(errors)[0] || data.error || 'Registration failed.';
-                this._showFormError(errorEl, msg);
             }
         } catch {
             this._showFormError(errorEl, 'Network error. Check your connection.');
@@ -190,7 +92,6 @@ const App = {
         this.token = null;
         if (window.ws && window.ws.ws) window.ws.ws.close();
         this.showView('auth-view');
-        this.showTab('login');
     },
 
     // ── Helpers ──
@@ -201,8 +102,10 @@ const App = {
 
     _setLoading(btn, loading) {
         btn.disabled = loading;
-        btn.querySelector('.btn-text').style.opacity = loading ? '0' : '1';
-        btn.querySelector('.btn-spinner').classList.toggle('hidden', !loading);
+        const textEl = btn.querySelector('.btn-text');
+        const spinEl = btn.querySelector('.btn-spinner');
+        if (textEl) textEl.style.opacity = loading ? '0' : '1';
+        if (spinEl) spinEl.classList.toggle('hidden', !loading);
     },
 
     togglePassword(inputId, btn) {
@@ -216,14 +119,23 @@ const App = {
         }
     },
 
-    toast(msg, type = 'info') {
+    showToast(msg, type = 'info') {
         const container = document.getElementById('toast-container');
+        if (!container) return;
         const t = document.createElement('div');
-        t.className = `toast ${type}`;
+        t.className = `toast toast-${type}`;
         t.textContent = msg;
         container.appendChild(t);
-        setTimeout(() => t.remove(), 4000);
+        // Animate in
+        requestAnimationFrame(() => t.classList.add('toast-visible'));
+        setTimeout(() => {
+            t.classList.remove('toast-visible');
+            setTimeout(() => t.remove(), 400);
+        }, 4000);
     },
+
+    // Legacy alias
+    toast(msg, type) { this.showToast(msg, type); },
 };
 
 window.addEventListener('DOMContentLoaded', () => App.init());

@@ -34,10 +34,12 @@ class EmployeeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Employee
         fields = [
-            'id', 'name', 'skill_tags', 'status', 'current_zone',
-            'current_zone_name', 'last_assigned_at', 'auth_token', 'created_at',
+            'id', 'name', 'username', 'skill_tags', 'status',
+            'break_ends_at', 'is_active',
+            'current_zone', 'current_zone_name',
+            'last_assigned_at', 'auth_token', 'created_at',
         ]
-        read_only_fields = ['auth_token', 'created_at']
+        read_only_fields = ['auth_token', 'created_at', 'break_ends_at']
 
 
 class TaskEventSerializer(serializers.ModelSerializer):
@@ -122,3 +124,14 @@ class TaskHistorySerializer(serializers.ModelSerializer):
         if obj.completed_at and obj.created_at:
             return (obj.completed_at - obj.created_at).total_seconds()
         return None
+
+
+class EmployeeStatsSerializer(serializers.Serializer):
+    """Per-employee analytics stats (not a ModelSerializer — built from aggregated data)."""
+    employee_id = serializers.IntegerField()
+    name = serializers.CharField()
+    status = serializers.CharField()
+    break_ends_at = serializers.DateTimeField(allow_null=True)
+    acknowledged = serializers.IntegerField()
+    missed = serializers.IntegerField()
+    ack_rate = serializers.FloatField(allow_null=True)

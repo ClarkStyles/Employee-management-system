@@ -1,30 +1,44 @@
 const Employee = {
     timerInterval: null,
     activeTaskTimer: null,
+    breakTimerInterval: null,
     taskExpiryTime: 0,
     taskStartTime: 0,
-    
+    breakEndsAt: null,
+    breakTotalSeconds: 0,
+
     async init(data) {
         this.data = data;
         document.getElementById('emp-name').textContent = data.name;
+        const initial = data.first_letter || data.name.charAt(0).toUpperCase();
+        document.getElementById('emp-avatar').textContent = initial;
         this.updateBadge(data.status);
-        
+
         await this.loadZones();
-        
+
         // Setup WS listeners
         ws.on('task_offer', (msg) => this.handleTaskOffer(msg));
         ws.on('task_reassigned', () => this.handleTaskReassigned());
         ws.on('status_update', (msg) => this.handleStatusUpdate(msg));
-        
+        ws.on('employee_status_update', (msg) => this.onStatusUpdate(msg));
+
         // Setup UI bindings
         document.getElementById('zone-select').addEventListener('change', (e) => this.checkin(e.target.value));
         document.getElementById('ack-btn').addEventListener('click', () => this.ackTask());
         document.getElementById('complete-btn').addEventListener('click', () => this.completeTask());
-        
+
+        // If already on break from previous session, restore countdown
+        if (data.status === 'ON_BREAK' && data.break_ends_at) {
+            this.startBreakCountdown(data.break_ends_at);
+        }
+
+        // Show/hide break controls based on initial status
+        this.syncBreakUI(data.status);
+
         // Check if already assigned
         this.checkExistingTask();
     },
-    
+
     async loadZones() {
         const zones = await api.get('/zones/');
         const select = document.getElementById('zone-select');
@@ -41,95 +55,194 @@ const Employee = {
             }
         }
     },
-    
+
     updateBadge(status) {
         const badge = document.getElementById('emp-status-badge');
-        badge.textContent = status;
-        badge.className = `badge ${status}`;
+        if (!badge) return;
+        const labels = {
+            FREE: 'FREE',
+            ASSIGNED: 'ASSIGNED',
+            ACKNOWLEDGED: 'ACKNOWLEDGED',
+            IN_PROGRESS: 'IN PROGRESS',
+            ON_BREAK: '☕ ON BREAK',
+            BUSY: 'BUSY',
+            OFFLINE: 'OFFLINE',
+        };
+        badge.textContent = labels[status] || status;
+        badge.className = `badge badge-${status}`;
         this.data.status = status;
     },
-    
+
+    syncBreakUI(status) {
+        const breakControls = document.getElementById('break-controls-card');
+        const breakCountdown = document.getElementById('break-countdown-card');
+        if (!breakControls || !breakCountdown) return;
+
+        if (status === 'ON_BREAK') {
+            breakControls.classList.add('hidden');
+            breakCountdown.classList.remove('hidden');
+        } else if (status === 'FREE') {
+            breakControls.classList.remove('hidden');
+            breakCountdown.classList.add('hidden');
+        } else {
+            // ASSIGNED, IN_PROGRESS, etc — hide both
+            breakControls.classList.add('hidden');
+            breakCountdown.classList.add('hidden');
+        }
+    },
+
     async checkExistingTask() {
-        // Fetch active tasks for this employee
         const tasks = await api.get('/tasks/active/');
         if (tasks && tasks.length) {
             const myTask = tasks.find(t => t.assigned_employee === this.data.id);
             if (myTask) {
                 this.currentTaskId = myTask.id;
                 if (myTask.status === 'ASSIGNED') {
-                    // Recreate offer card
-                    this.showOfferCard(myTask.zone_name, 45); // Approximate
+                    this.showOfferCard(myTask.zone_name, 45);
                 } else if (myTask.status === 'ACKNOWLEDGED' || myTask.status === 'IN_PROGRESS') {
                     this.showActiveTask(myTask.zone_name, new Date(myTask.acknowledged_at));
                 }
             }
         }
     },
-    
+
     checkin(zoneId) {
         if (!zoneId) return;
         ws.send('checkin', {zone_id: zoneId});
     },
-    
+
+    // ── Break Management ──────────────────────────────────────────
+
+    startBreak(durationSeconds) {
+        if (this.data.status !== 'FREE') {
+            App.showToast('Cannot start break — not FREE', 'error');
+            return;
+        }
+        ws.send('start_break', { duration_seconds: durationSeconds });
+        this.breakTotalSeconds = durationSeconds;
+    },
+
+    endBreakEarly() {
+        ws.send('end_break_early');
+    },
+
+    startBreakCountdown(breakEndsAtISO) {
+        this.breakEndsAt = new Date(breakEndsAtISO);
+
+        // Compute original total from current status_update vs now
+        const nowMs = Date.now();
+        const endsMs = this.breakEndsAt.getTime();
+        const remaining = Math.max(0, endsMs - nowMs);
+        if (!this.breakTotalSeconds || this.breakTotalSeconds <= 0) {
+            // Guess from remaining (might be mid-break on reconnect)
+            this.breakTotalSeconds = remaining / 1000;
+        }
+
+        if (this.breakTimerInterval) clearInterval(this.breakTimerInterval);
+
+        const tick = () => {
+            const rem = Math.max(0, Math.ceil((this.breakEndsAt.getTime() - Date.now()) / 1000));
+            const m = Math.floor(rem / 60);
+            const s = String(rem % 60).padStart(2, '0');
+            const el = document.getElementById('break-timer-value');
+            const fill = document.getElementById('break-progress-fill');
+            if (el) el.textContent = `${m}:${s}`;
+
+            const pct = this.breakTotalSeconds > 0
+                ? Math.max(0, (rem / this.breakTotalSeconds) * 100)
+                : 0;
+            if (fill) fill.style.width = `${pct}%`;
+
+            if (rem <= 0) {
+                clearInterval(this.breakTimerInterval);
+                // Server will broadcast break expiry; update UI immediately as well
+                this.onStatusUpdate({ status: 'FREE', break_ends_at: null });
+            }
+        };
+
+        tick();
+        this.breakTimerInterval = setInterval(tick, 1000);
+    },
+
+    stopBreakCountdown() {
+        if (this.breakTimerInterval) {
+            clearInterval(this.breakTimerInterval);
+            this.breakTimerInterval = null;
+        }
+        this.breakEndsAt = null;
+        const fill = document.getElementById('break-progress-fill');
+        if (fill) fill.style.width = '100%';
+    },
+
+    // Called when server sends employee_status_update (from break expiry or end_break_early)
+    onStatusUpdate(data) {
+        const newStatus = data.status;
+        this.updateBadge(newStatus);
+        this.syncBreakUI(newStatus);
+
+        if (newStatus === 'ON_BREAK' && data.break_ends_at) {
+            this.startBreakCountdown(data.break_ends_at);
+        } else if (newStatus === 'FREE') {
+            this.stopBreakCountdown();
+            App.showToast('Break ended — welcome back! ☀️', 'success');
+        }
+    },
+
+    // ── Task Management ───────────────────────────────────────────
+
     handleTaskOffer(msg) {
         this.currentTaskId = msg.task_id;
         this.showOfferCard(msg.zone, msg.expires_in);
     },
-    
+
     showOfferCard(zoneName, expiresIn) {
         document.getElementById('offer-zone-name').textContent = zoneName;
         document.getElementById('task-offer-card').classList.remove('hidden');
-        
+
         this.taskExpiryTime = Date.now() + (expiresIn * 1000);
-        
+
         if (this.timerInterval) clearInterval(this.timerInterval);
         this.timerInterval = setInterval(() => {
             const remaining = Math.max(0, Math.ceil((this.taskExpiryTime - Date.now()) / 1000));
             document.getElementById('offer-timer').textContent = remaining;
             if (remaining <= 0) {
                 clearInterval(this.timerInterval);
-                this.hideOfferCard(); // Assume timeout, server will reassign
+                this.hideOfferCard();
             }
         }, 1000);
     },
-    
+
     hideOfferCard() {
         document.getElementById('task-offer-card').classList.add('hidden');
         if (this.timerInterval) clearInterval(this.timerInterval);
     },
-    
+
     ackTask() {
         if (!this.currentTaskId) return;
-        // Offline handling: if WS is down, send returns false and queues it
         const sent = ws.send('ack', {task_id: this.currentTaskId});
         if (!sent) {
-            // Optimistically show active task if queued
             this.hideOfferCard();
             this.showActiveTask(document.getElementById('offer-zone-name').textContent, new Date());
             document.getElementById('active-task-panel').classList.add('offline-queued');
         }
     },
-    
+
     completeTask() {
         if (!this.currentTaskId) return;
-        const sent = ws.send('complete', {task_id: this.currentTaskId});
-        
+        ws.send('complete', {task_id: this.currentTaskId});
         this.hideActiveTask();
         this.updateBadge('FREE');
-        
-        if (!sent) {
-            // Wait for queue drain, but locally we look FREE
-        }
+        this.syncBreakUI('FREE');
     },
-    
+
     showActiveTask(zoneName, startTime) {
         this.hideOfferCard();
         document.getElementById('active-zone-name').textContent = zoneName;
         document.getElementById('active-task-panel').classList.remove('hidden');
         document.getElementById('active-task-panel').classList.remove('offline-queued');
-        
+
         this.taskStartTime = startTime.getTime();
-        
+
         if (this.activeTaskTimer) clearInterval(this.activeTaskTimer);
         this.activeTaskTimer = setInterval(() => {
             const elapsed = Math.floor((Date.now() - this.taskStartTime) / 1000);
@@ -137,29 +250,40 @@ const Employee = {
             const s = String(elapsed % 60).padStart(2, '0');
             document.getElementById('active-timer').textContent = `${m}:${s}`;
         }, 1000);
-        
-        this.updateBadge('BUSY');
+
+        this.updateBadge('IN_PROGRESS');
+        this.syncBreakUI('IN_PROGRESS');
     },
-    
+
     hideActiveTask() {
         document.getElementById('active-task-panel').classList.add('hidden');
         if (this.activeTaskTimer) clearInterval(this.activeTaskTimer);
         this.currentTaskId = null;
     },
-    
+
     handleTaskReassigned() {
         this.hideOfferCard();
         this.updateBadge('FREE');
-        alert("Task was reassigned because time expired.");
+        this.syncBreakUI('FREE');
+        App.showToast('Task reassigned — you are FREE', 'info');
     },
-    
+
     handleStatusUpdate(msg) {
         if (msg.status === 'ack_result' && msg.success) {
             document.getElementById('active-task-panel').classList.remove('offline-queued');
-            // Ensure UI is showing active
             if (document.getElementById('active-task-panel').classList.contains('hidden')) {
                 this.showActiveTask(document.getElementById('offer-zone-name').textContent, new Date());
             }
+        } else if (msg.status === 'break_started' && msg.success) {
+            this.updateBadge('ON_BREAK');
+            this.syncBreakUI('ON_BREAK');
+            if (msg.break_ends_at) this.startBreakCountdown(msg.break_ends_at);
+        } else if (msg.status === 'break_ended' && msg.success) {
+            this.updateBadge('FREE');
+            this.syncBreakUI('FREE');
+            this.stopBreakCountdown();
+        } else if (msg.status === 'break_rejected') {
+            App.showToast(msg.message || 'Cannot start break now', 'error');
         }
-    }
+    },
 };

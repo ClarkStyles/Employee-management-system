@@ -54,7 +54,8 @@
 - [x] README.md
 
 ## Phase 7: Verification
-- [ ] Start services and verify end-to-end flow in browser
-- [ ] Test login (alice / demo1234)
-- [ ] Test register (new account creation)
-- [ ] Confirm task offer → ACK → complete loop
+- [x] Start services and verify end-to-end flow in browser
+- [x] Test login (alice / demo1234)
+- [x] Test register (new account creation)
+- [x] Confirm task offer → ACK → complete loop
+- [x] Validate timeout checker runs successfully

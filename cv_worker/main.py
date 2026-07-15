@@ -9,6 +9,7 @@ from .detector import Detector
 from .zone_tracker import ZoneTracker
 from .redis_publisher import RedisPublisher
 from .snapshot import save_snapshot, start_cleanup_scheduler
+from .preview import generate_preview
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -81,7 +82,17 @@ def main():
                         )
                         if tracker.state == "ALERT":
                             save_snapshot(zone_id, frame)
-                            
+
+                    # 6. Generate preview frame if manager is watching
+                    generate_preview(
+                        zone_id=zone_id,
+                        frame=frame,
+                        boxes=boxes,
+                        roi_coords=roi,
+                        customer_count=tracker.customer_count,
+                        density=tracker.density,
+                    )
+
             # Tiny sleep to avoid pegging CPU if streams are exhausted/fast
             time.sleep(0.01)
             
