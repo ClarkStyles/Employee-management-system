@@ -12,7 +12,25 @@ logger = logging.getLogger(__name__)
 class VideoStream:
     def __init__(self, src=0):
         self.src = src
-        self.stream = cv2.VideoCapture(src)
+        stream_url = src
+        
+        # Resolve YouTube URLs to direct video streams
+        if isinstance(src, str) and ('youtube.com' in src or 'youtu.be' in src):
+            logger.info(f"Resolving YouTube URL: {src}")
+            try:
+                import yt_dlp
+                # format string prioritizes mp4 up to 720p for fast CV processing
+                ydl_opts = {'format': 'best[ext=mp4][height<=720]/best', 'quiet': True}
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(src, download=False)
+                    stream_url = info['url']
+                    logger.info(f"Resolved stream URL for {src}")
+            except ImportError:
+                logger.error("yt-dlp not installed. Cannot open YouTube links. Run: pip install yt-dlp")
+            except Exception as e:
+                logger.error(f"Failed to resolve YouTube URL {src}: {e}")
+
+        self.stream = cv2.VideoCapture(stream_url)
         if not self.stream.isOpened():
             logger.error(f"Failed to open video source: {src}")
 
@@ -26,8 +44,8 @@ class VideoStream:
         while self.stream.isOpened():
             ret, frame = self.stream.read()
             if not ret:
-                # If it's a file, loop it
-                if isinstance(self.src, str) and not self.src.startswith('rtsp://'):
+                # If it's a file, loop it (don't loop live streams or YouTube links)
+                if isinstance(self.src, str) and not self.src.startswith(('rtsp://', 'http://', 'https://')):
                     logger.info(f"Looping video file: {self.src}")
                     self.stream.set(cv2.CAP_PROP_POS_FRAMES, 0)
                     continue

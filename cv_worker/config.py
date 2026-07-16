@@ -12,7 +12,7 @@ load_dotenv(BASE_DIR / '.env')
 
 # URLs or file paths for video capture
 # e.g. "rtsp://192.168.1.100:554/stream1,demo_video.mp4"
-_camera_urls_env = os.getenv(r"C:\Users\style\Downloads", r"demo.mp4")
+_camera_urls_env = os.getenv(r"", r"")
 CAMERA_URLS = [url.strip() for url in _camera_urls_env.split(',')]
 
 FRAME_SAMPLE_INTERVAL = int(os.getenv("FRAME_SAMPLE_INTERVAL", "6"))

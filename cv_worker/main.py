@@ -36,13 +36,13 @@ def _get_zone_sources():
         import django
         os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.settings")
         django.setup()
-        from backend.core.models import Zone
+        from core.models import Zone
 
         zones = Zone.objects.all().order_by('id')
         sources = {}
         for zone in zones:
             if zone.video_source:
-                sources[zone.id] = zone.video_source
+                sources[str(zone.id)] = zone.video_source
         return sources
     except Exception as exc:
         logger.warning("Could not load zone video sources from Django: %s", exc)
