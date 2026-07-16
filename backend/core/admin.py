@@ -3,7 +3,8 @@ from .models import Zone, Employee, Task, TaskEvent
 
 @admin.register(Zone)
 class ZoneAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'current_state', 'required_skill')
+    list_display = ('id', 'name', 'current_state', 'required_skill', 'video_source')
+    search_fields = ('name', 'video_source')
 
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):

@@ -35,6 +35,14 @@ class Zone(models.Model):
 
     required_skill = models.CharField(max_length=100, blank=True, default='')
 
+    # Optional input source for pre-recorded or live feeds assigned to this zone.
+    video_source = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text="Path or URL for the video/feed assigned to this zone"
+    )
+
     # Zone adjacency stored as JSON: {"2": 1, "3": 2} = zone_id -> distance
     adjacency_map = models.JSONField(default=dict)
 

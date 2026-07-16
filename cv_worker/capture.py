@@ -1,6 +1,7 @@
 """
 Video capture and frame sampling.
 """
+import os
 import cv2
 import logging
 from collections import deque
@@ -43,16 +44,17 @@ class VideoStream:
         self.stream.release()
 
 class MultiStreamCapture:
-    def __init__(self):
+    def __init__(self, sources=None):
         self.streams = []
-        for url in config.CAMERA_URLS:
-            if not url:
+        self.sources = sources or config.CAMERA_URLS
+        for source in self.sources:
+            if not source:
                 continue
             # Handle local camera ID as integer if needed
             try:
-                src = int(url)
+                src = int(source)
             except ValueError:
-                src = url
+                src = source
             self.streams.append(VideoStream(src))
 
     def get_frames(self):

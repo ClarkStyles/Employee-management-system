@@ -1,6 +1,6 @@
 from django.test import TestCase
 
-from .models import Employee
+from .models import Employee, Zone
 
 
 class EmployeeAuthTests(TestCase):
@@ -11,3 +11,10 @@ class EmployeeAuthTests(TestCase):
         self.assertEqual(employee.password_hash, 'secret123')
         self.assertTrue(employee.check_password('secret123'))
         self.assertFalse(employee.check_password('wrongpass'))
+
+
+class ZoneVideoSourceTests(TestCase):
+    def test_zone_can_store_a_video_source(self):
+        zone = Zone.objects.create(name='Zone A', video_source='videos/zone_a.mp4')
+
+        self.assertEqual(zone.video_source, 'videos/zone_a.mp4')
