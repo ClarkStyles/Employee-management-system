@@ -27,7 +27,7 @@ def _get_redis():
         _redis_client = redis.Redis(
             host=config.REDIS_HOST,
             port=config.REDIS_PORT,
-            decode_responses=False,
+            decode_responses=False
         )
     return _redis_client
 
@@ -38,7 +38,8 @@ def is_preview_active(zone_id: str) -> bool:
         r = _get_redis()
         val = r.get(f"preview_active:{zone_id}")
         return val is not None and int(val) > 0
-    except Exception:
+    except Exception as e:
+        logger.error(f"is_preview_active error: {e}")
         return False
 
 
@@ -130,4 +131,4 @@ def generate_preview(
         r.set(f"zone:{zone_id}:preview", b64_frame, ex=5)  # 5-second TTL
 
     except Exception as e:
-        logger.error(f"Preview generation error (zone {zone_id}): {e}")
+        logger.error(f"Preview generation error (zone {zone_id}): {e}", exc_info=True)

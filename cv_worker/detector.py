@@ -57,10 +57,17 @@ class Detector:
         if roi_coords:
             mask = self.get_roi_mask(frame.shape, roi_coords)
             masked_frame = cv2.bitwise_and(frame, frame, mask=mask)
-            # Find bounding box of mask to crop (optimization)
-            y, x = np.where(mask == 255)
-            if len(y) > 0 and len(x) > 0:
-                y1, y2, x1, x2 = np.min(y), np.max(y), np.min(x), np.max(x)
+            
+            # Optimization: use cv2.boundingRect to find bounding box of ROI coordinates
+            h, w = frame.shape[:2]
+            pts = np.array([[int(x * w), int(y * h)] for x, y in roi_coords], np.int32)
+            x, y, bw, bh = cv2.boundingRect(pts)
+            
+            # Ensure within frame bounds
+            x1, y1 = max(0, x), max(0, y)
+            x2, y2 = min(w - 1, x + bw), min(h - 1, y + bh)
+            
+            if x2 > x1 and y2 > y1:
                 cropped = masked_frame[y1:y2+1, x1:x2+1]
                 input_tensor = self.preprocess(cropped)
             else:

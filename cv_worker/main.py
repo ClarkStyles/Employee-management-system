@@ -37,8 +37,17 @@ def _get_zone_sources():
         os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.settings")
         django.setup()
         from core.models import Zone
+        from cv_worker import config
 
         zones = Zone.objects.all().order_by('id')
+        
+        # Ensure all zones from the database have an ROI in config
+        default_roi = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+        for zone in zones:
+            z_id_str = str(zone.id)
+            if z_id_str not in config.ZONE_ROIS:
+                config.ZONE_ROIS[z_id_str] = default_roi
+
         sources = {}
         for zone in zones:
             if zone.video_source:
@@ -80,8 +89,12 @@ def main():
     
     logger.info("CV Pipeline running.")
     try:
+        frame_count = 0
         while True:
             for stream_idx, frame in capture.get_frames():
+                frame_count += 1
+                if frame_count % 30 == 0:
+                    logger.info(f"Processed {frame_count} frames...")
                 zone_id = None
                 if zone_sources:
                     zone_id = list(zone_sources.keys())[stream_idx]

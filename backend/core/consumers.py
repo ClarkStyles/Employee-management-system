@@ -644,7 +644,7 @@ class PreviewConsumer(AsyncWebsocketConsumer):
             r = redis_lib.Redis(
                 host=settings.REDIS_HOST,
                 port=settings.REDIS_PORT,
-                decode_responses=False,  # Raw bytes for binary data
+                decode_responses=False  # Raw bytes for binary data
             )
         except Exception as e:
             logger.error(f"Preview Redis connect error: {e}")
