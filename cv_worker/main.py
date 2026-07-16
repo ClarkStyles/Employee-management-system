@@ -1,17 +1,27 @@
 """
 Main entry point for cv-worker.
+
+Run from project root:
+  python -m cv_worker.main
+  python cv_worker/main.py
 """
 import os
+import sys
+
+_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _root not in sys.path:
+    sys.path.insert(0, _root)
+
 import time
 import logging
 from django.conf import settings
-from . import config
-from .capture import MultiStreamCapture
-from .detector import Detector
-from .zone_tracker import ZoneTracker
-from .redis_publisher import RedisPublisher
-from .snapshot import save_snapshot, start_cleanup_scheduler
-from .preview import generate_preview
+from cv_worker import config
+from cv_worker.capture import MultiStreamCapture
+from cv_worker.detector import Detector
+from cv_worker.zone_tracker import ZoneTracker
+from cv_worker.redis_publisher import RedisPublisher
+from cv_worker.snapshot import save_snapshot, start_cleanup_scheduler
+from cv_worker.preview import generate_preview
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -19,6 +29,10 @@ logger = logging.getLogger(__name__)
 def _get_zone_sources():
     """Return a mapping of zone_id -> video source from the Django database when available."""
     try:
+        import sys
+        backend_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'backend')
+        if backend_path not in sys.path:
+            sys.path.insert(0, backend_path)
         import django
         os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.settings")
         django.setup()
@@ -28,7 +42,7 @@ def _get_zone_sources():
         sources = {}
         for zone in zones:
             if zone.video_source:
-                sources[str(zone.id)] = zone.video_source
+                sources[zone.id] = zone.video_source
         return sources
     except Exception as exc:
         logger.warning("Could not load zone video sources from Django: %s", exc)
