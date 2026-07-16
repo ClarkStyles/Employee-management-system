@@ -6,6 +6,7 @@ const Employee = {
     taskStartTime: 0,
     breakEndsAt: null,
     breakTotalSeconds: 0,
+    taskRefreshInterval: null,
 
     async init(data) {
         this.data = data;
@@ -37,6 +38,7 @@ const Employee = {
 
         // Check if already assigned
         this.checkExistingTask();
+        this.startTaskPolling();
     },
 
     async loadZones() {
@@ -92,30 +94,56 @@ const Employee = {
     },
 
     async checkExistingTask() {
+        await this.refreshTaskState();
+    },
+
+    startTaskPolling() {
+        if (this.taskRefreshInterval) clearInterval(this.taskRefreshInterval);
+        this.taskRefreshInterval = setInterval(() => this.refreshTaskState(), 5000);
+    },
+
+    stopTaskPolling() {
+        if (this.taskRefreshInterval) {
+            clearInterval(this.taskRefreshInterval);
+            this.taskRefreshInterval = null;
+        }
+    },
+
+    async refreshTaskState() {
         const tasks = await api.get('/tasks/active/');
-        if (tasks && tasks.length) {
-            const myTask = tasks.find(t => t.assigned_employee === this.data.id);
-            if (myTask) {
-                this.currentTaskId = myTask.id;
-                if (myTask.status === 'ASSIGNED') {
-                    // Compute real remaining seconds from task creation time
-                    const ACK_TIMEOUT = 45; // matches ACK_TIMEOUT_SECONDS
-                    const createdAt = new Date(myTask.created_at).getTime();
-                    const elapsed = Math.floor((Date.now() - createdAt) / 1000);
-                    const remaining = Math.max(0, ACK_TIMEOUT - elapsed);
-                    if (remaining > 0) {
-                        this.showOfferCard(myTask.zone_name, remaining);
-                    } else {
-                        // Already timed out server-side; don't show stale offer
-                        this.currentTaskId = null;
-                    }
-                } else if (myTask.status === 'ACKNOWLEDGED' || myTask.status === 'IN_PROGRESS') {
-                    const startTime = myTask.acknowledged_at
-                        ? new Date(myTask.acknowledged_at)
-                        : new Date(myTask.created_at);
-                    this.showActiveTask(myTask.zone_name, startTime);
-                }
+        if (!tasks || !tasks.length) {
+            this.hideOfferCard();
+            this.hideActiveTask();
+            return;
+        }
+
+        const myTask = tasks.find(t => t.assigned_employee === this.data.id);
+        if (!myTask) {
+            this.hideOfferCard();
+            this.hideActiveTask();
+            return;
+        }
+
+        this.currentTaskId = myTask.id;
+        if (myTask.status === 'ASSIGNED') {
+            const ACK_TIMEOUT = 45;
+            const createdAt = new Date(myTask.created_at).getTime();
+            const elapsed = Math.floor((Date.now() - createdAt) / 1000);
+            const remaining = Math.max(0, ACK_TIMEOUT - elapsed);
+            if (remaining > 0) {
+                this.showOfferCard(myTask.zone_name, remaining);
+            } else {
+                this.currentTaskId = null;
+                this.hideOfferCard();
             }
+        } else if (myTask.status === 'ACKNOWLEDGED' || myTask.status === 'IN_PROGRESS') {
+            const startTime = myTask.acknowledged_at
+                ? new Date(myTask.acknowledged_at)
+                : new Date(myTask.created_at);
+            this.showActiveTask(myTask.zone_name, startTime);
+        } else {
+            this.hideOfferCard();
+            this.hideActiveTask();
         }
     },
 

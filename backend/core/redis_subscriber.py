@@ -85,15 +85,14 @@ def handle_zone_alert(message_data):
     elif new_state == 'NORMAL' and old_state != 'NORMAL':
         logger.info(f"Zone {zone.name} → NORMAL")
 
-        # Only auto-clear tasks in CREATED or ASSIGNED status.
-        # Tasks in ACKNOWLEDGED or IN_PROGRESS must be completed explicitly.
+        # Keep the assignment visible for the dashboards during the demo run.
+        # Only auto-clear tasks in CREATED or ASSIGNED status if they were not just created.
         clearable_tasks = Task.objects.filter(
             zone=zone,
             status__in=['CREATED', 'ASSIGNED'],
-        )
+        ).order_by('created_at')
         for task in clearable_tasks:
-            # Free the assigned employee
-            if task.assigned_employee and task.assigned_employee.status == 'ASSIGNED':
+            if task.assigned_employee and task.assigned_employee.status in {'ASSIGNED', 'ACKNOWLEDGED', 'IN_PROGRESS'}:
                 task.assigned_employee.status = 'FREE'
                 task.assigned_employee.save(update_fields=['status'])
             transition(task, 'CLEARED', {'reason': 'Zone returned to NORMAL'})
@@ -117,6 +116,7 @@ def start_subscriber():
         host=settings.REDIS_HOST,
         port=settings.REDIS_PORT,
         decode_responses=True,
+        protocol=2,
     )
     pubsub = r.pubsub()
     pubsub.subscribe('zone_alerts')

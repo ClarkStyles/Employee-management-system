@@ -11,6 +11,7 @@ const MgrApp = {
     // Active task tracking: employee_id -> {employee_name, zone_name, status, assigned_at}
     activeTasks: {},
     elapsedTimerInterval: null,
+    activeTasksRefreshInterval: null,
 
     init() {
         this.checkAuth();
@@ -127,6 +128,7 @@ const MgrApp = {
         
         if (this.wsManager) this.wsManager.close();
         if (this.wsPreview) this.wsPreview.close();
+        this.stopActiveTasksPolling();
         
         window.location.reload();
     },
@@ -144,6 +146,7 @@ const MgrApp = {
         this.connectManagerWS();
         this.loadZones();
         this.navigate('dashboard');
+        this.startActiveTasksPolling();
     },
 
     navigate(pageId) {
@@ -246,6 +249,18 @@ const MgrApp = {
             this.renderZonesGrid(res.data);
         }
         await this.loadActiveTasks();
+    },
+
+    startActiveTasksPolling() {
+        this.stopActiveTasksPolling();
+        this.activeTasksRefreshInterval = setInterval(() => this.loadActiveTasks(), 5000);
+    },
+
+    stopActiveTasksPolling() {
+        if (this.activeTasksRefreshInterval) {
+            clearInterval(this.activeTasksRefreshInterval);
+            this.activeTasksRefreshInterval = null;
+        }
     },
 
     async loadActiveTasks() {

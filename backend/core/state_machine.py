@@ -48,6 +48,13 @@ def transition(task, new_status, details=None):
     # Update timestamps based on transition
     if new_status == 'ACKNOWLEDGED':
         task.acknowledged_at = timezone.now()
+        if task.assigned_employee:
+            task.assigned_employee.status = 'ACKNOWLEDGED'
+            task.assigned_employee.save(update_fields=['status'])
+    elif new_status == 'IN_PROGRESS':
+        if task.assigned_employee:
+            task.assigned_employee.status = 'IN_PROGRESS'
+            task.assigned_employee.save(update_fields=['status'])
     elif new_status == 'COMPLETED':
         task.completed_at = timezone.now()
         # Free the employee
@@ -65,14 +72,16 @@ def transition(task, new_status, details=None):
 
     logger.info(f"Task #{task.id}: {old_status} → {new_status}")
 
-    # On completion, notify manager that employee is now FREE
-    if new_status == 'COMPLETED' and task.assigned_employee:
+    # Notify manager for acknowledgement / in-progress transitions as well.
+    if task.assigned_employee and new_status in {'ACKNOWLEDGED', 'IN_PROGRESS', 'COMPLETED'}:
+        status = 'FREE' if new_status == 'COMPLETED' else new_status
         _broadcast_employee_status(
             task.assigned_employee,
-            status='FREE',
-            task_id=None,
-            zone_id=None,
-            zone_name=None,
+            status=status,
+            task_id=task.id if status in {'ACKNOWLEDGED', 'IN_PROGRESS'} else None,
+            zone_id=task.zone_id if status in {'ACKNOWLEDGED', 'IN_PROGRESS'} else None,
+            zone_name=task.zone.name if status in {'ACKNOWLEDGED', 'IN_PROGRESS'} else None,
+            assigned_at=task.created_at.isoformat() if status in {'ACKNOWLEDGED', 'IN_PROGRESS'} else None,
         )
 
     return True
