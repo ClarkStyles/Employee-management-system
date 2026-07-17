@@ -8,11 +8,14 @@ Runs as a Django management command: python manage.py run_subscriber
 import json
 import logging
 import threading
+import time
 import redis as redis_lib
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
 logger = logging.getLogger(__name__)
+
+_subscriber_thread = None
 
 
 def handle_zone_alert(message_data):
@@ -110,37 +113,67 @@ def handle_zone_alert(message_data):
     )
 
 
+def build_redis_client():
+    kwargs = {
+        'host': settings.REDIS_HOST,
+        'port': settings.REDIS_PORT,
+        'decode_responses': True,
+        'socket_connect_timeout': 2,
+        'socket_timeout': 2,
+    }
+    try:
+        return redis_lib.Redis(**kwargs, protocol=2)
+    except TypeError:
+        return redis_lib.Redis(**kwargs)
+
+
 def start_subscriber():
     """Start listening on the Redis zone_alerts channel."""
-    r = redis_lib.Redis(
-        host=settings.REDIS_HOST,
-        port=settings.REDIS_PORT,
-        decode_responses=True,
-        protocol=2,
-    )
-    pubsub = r.pubsub()
+    r = build_redis_client()
+    pubsub = r.pubsub(ignore_subscribe_messages=True)
     pubsub.subscribe('zone_alerts')
 
     logger.info("Redis subscriber started — listening on 'zone_alerts'")
 
-    for message in pubsub.listen():
-        if message['type'] != 'message':
-            continue
+    while True:
         try:
-            data = json.loads(message['data'])
-            handle_zone_alert(data)
-        except json.JSONDecodeError:
-            logger.error(f"Invalid JSON in zone_alerts: {message['data']}")
+            message = pubsub.get_message(timeout=1.0)
+            if message is None:
+                continue
+            if message.get('type') != 'message':
+                continue
+            try:
+                data = json.loads(message['data'])
+                logger.info(f"Received zone alert payload: {data}")
+                handle_zone_alert(data)
+            except json.JSONDecodeError:
+                logger.error(f"Invalid JSON in zone_alerts: {message['data']}")
+            except Exception as e:
+                logger.exception(f"Error handling zone alert: {e}")
         except Exception as e:
-            logger.exception(f"Error handling zone alert: {e}")
+            logger.exception(f"Redis subscriber loop failed: {e}")
+            time.sleep(1)
+
+
+def ensure_subscriber_thread():
+    """Start the Redis subscriber in a daemon thread once per process."""
+    global _subscriber_thread
+    if _subscriber_thread and _subscriber_thread.is_alive():
+        return _subscriber_thread
+
+    _subscriber_thread = threading.Thread(
+        target=start_subscriber,
+        daemon=True,
+        name='redis-zone-alert-subscriber',
+    )
+    _subscriber_thread.start()
+    logger.info("Redis subscriber thread started")
+    return _subscriber_thread
 
 
 def start_subscriber_thread():
-    """Start the Redis subscriber in a daemon thread."""
-    thread = threading.Thread(target=start_subscriber, daemon=True)
-    thread.start()
-    logger.info("Redis subscriber thread started")
-    return thread
+    """Backward-compatible wrapper for starting the Redis subscriber thread."""
+    return ensure_subscriber_thread()
 
 
 class Command(BaseCommand):

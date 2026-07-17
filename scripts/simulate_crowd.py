@@ -6,6 +6,8 @@ import argparse
 import redis
 from pathlib import Path
 from dotenv import load_dotenv
+from django.db import models  
+import django
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
@@ -15,11 +17,12 @@ if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.settings")
-import django
+
 
 django.setup()
 
 from core.models import Employee, Zone
+from core.redis_subscriber import ensure_subscriber_thread, handle_zone_alert
 
 
 def ensure_demo_data(alert_zone_id):
@@ -93,13 +96,23 @@ def sync_scattered_employees(alert_zone_id):
     return zone_employee_ids
 
 
+def build_redis_client():
+    kwargs = {
+        'host': os.getenv("REDIS_HOST", "127.0.0.1"),
+        'port': int(os.getenv("REDIS_PORT", 6379)),
+        'decode_responses': True,
+        'socket_connect_timeout': 2,
+        'socket_timeout': 2,
+    }
+    try:
+        return redis.Redis(**kwargs, protocol=2)
+    except TypeError:
+        return redis.Redis(**kwargs)
+
+
 def simulate(zone_id, ramp_to, duration):
-    r = redis.Redis(
-        host=os.getenv("REDIS_HOST", "127.0.0.1"),
-        port=int(os.getenv("REDIS_PORT", 6379)),
-        decode_responses=True,
-        protocol=2,
-    )
+    r = build_redis_client()
+    ensure_subscriber_thread()
     
     zone_employee_ids = sync_scattered_employees(int(zone_id))
     print(f"Starting simulation for Zone {zone_id}. Ramping to {ramp_to} over {duration}s.")
@@ -143,12 +156,13 @@ def simulate(zone_id, ramp_to, duration):
                 "timestamp": time.time()
             }
             r.publish("zone_alerts", json.dumps(payload))
+            handle_zone_alert(payload)
             print(f"Published ALERT for Zone {zone_id}")
             
         time.sleep(step_time)
         
-    print(f"Holding peak for 10 seconds...")
-    time.sleep(10)
+    print(f"Holding peak for 30 seconds...")
+    time.sleep(30)
     
     # 2. Ramp down
     for i in range(steps, -1, -1):
@@ -178,6 +192,7 @@ def simulate(zone_id, ramp_to, duration):
                 "timestamp": time.time()
             }
             r.publish("zone_alerts", json.dumps(payload))
+            handle_zone_alert(payload)
             print(f"Published NORMAL for Zone {zone_id}")
             
         time.sleep(step_time)

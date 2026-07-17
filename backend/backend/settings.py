@@ -89,15 +89,32 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')
 REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
 
-# Channel Layers — Redis backend
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [(REDIS_HOST, REDIS_PORT)],
+# Channel Layers — use Redis when explicitly enabled, otherwise fall back to an
+# in-memory layer so the local demo works without a live Redis server.
+USE_REDIS_CHANNEL_LAYER = os.getenv('USE_REDIS_CHANNEL_LAYER', 'false').lower() in ('true', '1', 'yes')
+
+if USE_REDIS_CHANNEL_LAYER:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [
+                    {
+                        'address': f'redis://{REDIS_HOST}:{REDIS_PORT}/0',
+                    }
+                ],
+                'prefix': 'srs',
+                'expiry': 60,
+                'symmetric_encryption_keys': [],
+            },
         },
-    },
-}
+    }
+else:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        },
+    }
 
 # DRF configuration
 REST_FRAMEWORK = {
