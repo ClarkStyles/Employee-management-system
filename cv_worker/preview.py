@@ -27,7 +27,8 @@ def _get_redis():
         _redis_client = redis.Redis(
             host=config.REDIS_HOST,
             port=config.REDIS_PORT,
-            decode_responses=False
+            decode_responses=False,
+            protocol=2
         )
     return _redis_client
 
@@ -39,7 +40,7 @@ def is_preview_active(zone_id: str) -> bool:
         val = r.get(f"preview_active:{zone_id}")
         return val is not None and int(val) > 0
     except Exception as e:
-        logger.error(f"is_preview_active error: {e}")
+        logger.debug(f"Preview activity check skipped: {e}")
         return False
 
 

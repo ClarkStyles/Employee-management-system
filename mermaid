@@ -1,0 +1,62 @@
+flowchart TB
+    subgraph Sources[Sources and Inputs]
+        CAM[Camera / RTSP Stream]
+        SIM[Simulation Script]
+        USER[Employee / Manager Users]
+    end
+
+    subgraph CV[Computer Vision Worker]
+        CAP[Capture Frames]
+        DET[Detect People]
+        TRACK[Zone Tracker]
+        PUB[Redis Publisher]
+    end
+
+    subgraph Broker[Messaging Layer]
+        REDIS[(Redis)]
+    end
+
+    subgraph Backend[Django Backend]
+        SUB[Redis Subscriber]
+        ASSIGN[Assignment Engine]
+        STATE[Task State Machine]
+        API[REST API]
+        WS[WebSocket Consumers]
+        DB[(SQLite Database)]
+    end
+
+    subgraph Frontend[Frontend Dashboards]
+        EMP[Employee Dashboard]
+        MAN[Manager Dashboard]
+    end
+
+    CAM --> CAP
+    SIM --> PUB
+    CAP --> DET
+    DET --> TRACK
+    TRACK --> PUB
+    PUB --> REDIS
+
+    REDIS --> SUB
+    SUB --> ASSIGN
+    ASSIGN --> STATE
+    STATE --> DB
+    ASSIGN --> API
+    STATE --> WS
+    API --> EMP
+    API --> MAN
+    WS --> EMP
+    WS --> MAN
+
+    EMP --> USER
+    MAN --> USER
+
+    classDef service fill:#e8f0fe,stroke:#1a73e8,color:#0b57d0,stroke-width:1px;
+    classDef data fill:#f3e8ff,stroke:#9334e6,color:#6f1ab1,stroke-width:1px;
+    classDef ui fill:#e6f4ea,stroke:#188038,color:#137333,stroke-width:1px;
+
+    class CAM,SIM,USER Sources;
+    class CAP,DET,TRACK,PUB service;
+    class REDIS,DB data;
+    class SUB,ASSIGN,STATE,API,WS service;
+    class EMP,MAN ui;

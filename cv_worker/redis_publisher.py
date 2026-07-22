@@ -14,7 +14,8 @@ class RedisPublisher:
             self.r = redis.Redis(
                 host=config.REDIS_HOST,
                 port=config.REDIS_PORT,
-                decode_responses=True
+                decode_responses=True,
+                protocol=2
             )
             # Test connection
             self.r.ping()

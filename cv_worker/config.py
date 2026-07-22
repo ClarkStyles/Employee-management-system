@@ -10,10 +10,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / '.env')
 
-# URLs or file paths for video capture
-# e.g. "rtsp://192.168.1.100:554/stream1,demo_video.mp4"
-_camera_urls_env = os.getenv(r"", r"")
-CAMERA_URLS = [url.strip() for url in _camera_urls_env.split(',')]
+_camera_urls_env = os.getenv("CAMERA_URLS", "")
+if _camera_urls_env.strip():
+    try:
+        parsed = ast.literal_eval(_camera_urls_env)
+        if isinstance(parsed, (list, tuple)):
+            CAMERA_URLS = [str(url).strip() for url in parsed if str(url).strip()]
+        else:
+            CAMERA_URLS = [str(parsed).strip()]
+    except (ValueError, SyntaxError):
+        CAMERA_URLS = [url.strip() for url in _camera_urls_env.split(',') if url.strip()]
+else:
+    CAMERA_URLS = ["0"]
 
 FRAME_SAMPLE_INTERVAL = int(os.getenv("FRAME_SAMPLE_INTERVAL", "6"))
 ONNX_MODEL_PATH = os.getenv("ONNX_MODEL_PATH", str(BASE_DIR / "cv_worker" / "models" / "yolo11n.onnx"))
@@ -21,14 +29,11 @@ ONNX_MODEL_PATH = os.getenv("ONNX_MODEL_PATH", str(BASE_DIR / "cv_worker" / "mod
 REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 
-# Simulated zones (ID matches database)
-# Default regions (proportional coordinates x, y from 0 to 1) for a 1280x720 video
-# For a real implementation, you'd have an API to fetch these from the DB.
 ZONE_ROIS = {
-    "1": [(0.0, 0.0), (0.5, 0.0), (0.5, 0.5), (0.0, 0.5)],   # Entrance (top-left)
-    "2": [(0.5, 0.0), (1.0, 0.0), (1.0, 0.5), (0.5, 0.5)],   # Electronics (top-right)
-    "3": [(0.0, 0.5), (0.5, 0.5), (0.5, 1.0), (0.0, 1.0)],   # Checkout (bottom-left)
-    "4": [(0.5, 0.5), (1.0, 0.5), (1.0, 1.0), (0.5, 1.0)],   # Grocery (bottom-right)
+    "1": [(0.0, 0.0), (0.5, 0.0), (0.5, 0.5), (0.0, 0.5)],
+    "2": [(0.5, 0.0), (1.0, 0.0), (1.0, 0.5), (0.5, 0.5)],
+    "3": [(0.0, 0.5), (0.5, 0.5), (0.5, 1.0), (0.0, 1.0)],
+    "4": [(0.5, 0.5), (1.0, 0.5), (1.0, 1.0), (0.5, 1.0)],
 }
 
 HYSTERESIS_WINDOW_SEC = int(os.getenv("HYSTERESIS_WINDOW_SECONDS", 60))

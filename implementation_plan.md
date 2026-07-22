@@ -4,21 +4,8 @@
 
 A 5G/MEC retail prototype where cameras monitor retail zones, an MEC-hosted CV pipeline detects crowd density, and the system automatically assigns the best-available employee to overcrowded zones via a closed-loop task state machine. Four separate services communicate through Redis.
 
-```mermaid
-graph LR
-    CAM["Sparsh 5G Camera<br/>RTSP Stream"] --> CVW["cv-worker<br/>(Python process)"]
-    CVW -->|pub/sub + hash| RED["Redis"]
-    RED -->|subscribe| BE["backend<br/>(Django ASGI)"]
-    BE -->|WebSocket| FE["frontend<br/>(PWA)"]
-    FE -->|REST + WS| BE
-    BE -->|ORM| DB["SQLite"]
-```
-
----
-
 ## Project Directory Structure
 
-```
 d:\CODING\Employment management system\
 ├── README.md
 ├── .env.example

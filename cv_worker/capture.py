@@ -34,7 +34,7 @@ class VideoStream:
             except Exception as e:
                 logger.error(f"Failed to resolve YouTube URL {self.src}: {e}")
 
-        self.stream = cv2.VideoCapture(stream_url)
+        self.stream = cv2.VideoCapture(stream_url, cv2.CAP_FFMPEG)
         if not self.stream.isOpened():
             logger.error(f"Failed to open video source: {self.src}")
 
@@ -45,12 +45,22 @@ class VideoStream:
         self._open_stream()
 
     def read(self):
+        if not hasattr(self, 'stream') or not self.stream.isOpened():
+            logger.info(f"Attempting to reopen video source: {self.src}")
+            import time
+            time.sleep(2)
+            self._open_stream()
+            if not hasattr(self, 'stream') or not self.stream.isOpened():
+                return None
+
         while self.stream.isOpened():
             ret, frame = self.stream.read()
             if not ret:
-                # Reached EOF, loop the video by re-opening
+                # Reached EOF or stream dropped, loop the video by re-opening
                 logger.info(f"Looping video source: {self.src}")
                 self.stream.release()
+                import time
+                time.sleep(2)  # brief pause before reconnecting
                 self._open_stream()
                 if not self.stream.isOpened():
                     return None

@@ -478,6 +478,7 @@ class EmployeeConsumer(AsyncWebsocketConsumer):
                 host=settings.REDIS_HOST,
                 port=settings.REDIS_PORT,
                 decode_responses=True,
+                protocol=2,
             )
             for z in Zone.objects.all():
                 r.srem(f"zone:{z.id}:checked_in", str(self.employee_id))
@@ -644,7 +645,8 @@ class PreviewConsumer(AsyncWebsocketConsumer):
             r = redis_lib.Redis(
                 host=settings.REDIS_HOST,
                 port=settings.REDIS_PORT,
-                decode_responses=False  # Raw bytes for binary data
+                decode_responses=False,  # Raw bytes for binary data
+                protocol=2,
             )
         except Exception as e:
             logger.error(f"Preview Redis connect error: {e}")
@@ -680,6 +682,7 @@ class PreviewConsumer(AsyncWebsocketConsumer):
                 host=settings.REDIS_HOST,
                 port=settings.REDIS_PORT,
                 decode_responses=True,
+                protocol=2,
             )
             key = f"preview_active:{self.zone_id}"
             if active:
