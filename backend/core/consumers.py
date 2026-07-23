@@ -1,6 +1,5 @@
-"""
-WebSocket consumers for real-time employee and manager communication.
-"""
+# WebSocket consumers for real-time employee and manager and live preview thing in the manager portal
+
 
 import asyncio
 import base64
@@ -14,24 +13,23 @@ logger = logging.getLogger(__name__)
 
 
 class EmployeeConsumer(AsyncWebsocketConsumer):
-    """
-    WebSocket consumer for employee sessions.
 
-    Connected to: ws/employee/{token}/
+#WebSocket consumer for employee sessions.
+#Connected to: ws/employee/{token}/
 
-    Server -> Client messages:
-      {type: "task_offer", task_id, zone, zone_id, expires_in}
-      {type: "zone_update", zone_id, zone_name, state, density}
-      {type: "status_update", status, message}
-      {type: "employee_status_update", employee_id, status, break_ends_at}
+    # Server -> Client messages:
+    #   {type: "task_offer", task_id, zone, zone_id, expires_in}
+    #   {type: "zone_update", zone_id, zone_name, state, density}
+    #   {type: "status_update", status, message}
+    #   {type: "employee_status_update", employee_id, status, break_ends_at}
 
-    Client -> Server messages:
-      {type: "ack", task_id}
-      {type: "complete", task_id}
-      {type: "checkin", zone_id}
-      {type: "start_break", duration_seconds}   # 150 or 300, only when FREE
-      {type: "end_break_early"}
-    """
+    # Client -> Server messages:
+    #   {type: "ack", task_id}
+    #   {type: "complete", task_id}
+    #   {type: "checkin", zone_id}
+    #   {type: "start_break", duration_seconds}   # 150 or 300, only when FREE
+    #   {type: "end_break_early"}
+
 
     async def connect(self):
         self.employee = self.scope.get('employee')

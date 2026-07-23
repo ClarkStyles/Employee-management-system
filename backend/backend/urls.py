@@ -12,9 +12,9 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('core.urls')),
-    # Manager portal (separate SPA, session-based auth)
+    # Manager portal (token-based auth)
     path('manager/', ensure_csrf_cookie(TemplateView.as_view(template_name='manager.html')),
          name='manager-portal'),
-    # Employee PWA (catch-all last)
+    # Employee PWA (token-based auth)
     path('', TemplateView.as_view(template_name='index.html')),
 ]

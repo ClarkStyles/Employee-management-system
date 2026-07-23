@@ -1,7 +1,6 @@
-"""
-Data models for the Smart Employee Reallocation System.
-Zone, Employee, Task, TaskEvent.
-"""
+# Data models for the Smart Reallocation System.
+# Zone, Employee, Task, TaskEvent.
+
 
 from django.db import models
 from django.contrib.auth.hashers import check_password as django_check_password, is_password_usable
@@ -29,7 +28,8 @@ class Zone(models.Model):
         default=2,
         help_text="Seconds density must stay above/below threshold before state change"
     )
-
+#lower case is used somewhere and I can't put my head around where and surely I have used
+#the upper case normal in the backend 
     ZONE_STATES = [('NORMAL', 'Normal'), ('ALERT', 'Alert')]
     current_state = models.CharField(max_length=10, choices=ZONE_STATES, default='NORMAL')
 

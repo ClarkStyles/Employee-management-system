@@ -1,6 +1,4 @@
-"""
-Django settings for Smart Employee Reallocation System.
-"""
+#Django settings for Smart Reallocation System.
 
 import os
 from pathlib import Path

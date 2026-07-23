@@ -1,6 +1,5 @@
-"""
-DRF views for Zone, Employee, Task, and Manager operations.
-"""
+# DRF views for Zone, Employee, Task, and Manager operations.
+
 
 import uuid
 import logging

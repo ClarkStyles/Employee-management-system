@@ -1,9 +1,5 @@
-"""
-Redis subscriber — listens for zone_alerts from cv-worker and triggers
-assignment engine + pushes WebSocket updates.
-
-Runs as a Django management command: python manage.py run_subscriber
-"""
+# Redis subscriber — listens for zone_alerts from cv-worker and triggers
+# assignment engine + pushes WebSocket updates.
 
 import json
 import logging
@@ -19,12 +15,8 @@ _subscriber_thread = None
 
 
 def handle_zone_alert(message_data):
-    """
-    Process a zone alert message from the cv-worker.
-    
-    Message format:
-    {"zone_id": 1, "new_state": "ALERT", "density": 0.83, "customer_count": 10, "timestamp": ...}
-    """
+ # Process a zone alert message from the cv-worker.
+
     from core.models import Zone, Task
     from core.assignment import find_best_employee, create_and_assign_task
     from core.state_machine import transition

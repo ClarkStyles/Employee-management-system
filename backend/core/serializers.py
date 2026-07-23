@@ -1,6 +1,5 @@
-"""
-DRF serializers for Zone, Employee, Task, TaskEvent.
-"""
+# DRF serializers for Zone, Employee, Task, TaskEvent.
+
 
 from rest_framework import serializers
 from .models import Zone, Employee, Task, TaskEvent

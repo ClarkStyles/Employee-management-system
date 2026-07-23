@@ -1,6 +1,5 @@
-"""
-Token authentication middleware for WebSocket connections and REST API.
-"""
+# Token authentication middleware for WebSocket connections and REST API.
+
 
 import logging
 from channels.db import database_sync_to_async

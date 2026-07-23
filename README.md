@@ -27,8 +27,9 @@ The system is composed of four main parts:
 
 2. Django + Channels backend
    - Exposes the REST API and ASGI WebSocket endpoints
-   - Hosts the manager portal and employee-facing app
+   - Hosts the manager portal and employee app
    - Runs task state transitions, assignment logic, and timeout checks
+   - Provides a customized Django Admin portal for robust backend management
 
 3. Redis
    - Stores live metrics and preview state

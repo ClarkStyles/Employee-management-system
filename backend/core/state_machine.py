@@ -1,12 +1,12 @@
-"""
-Task State Machine — manages task lifecycle transitions and timeout handling.
 
-States: CREATED -> ASSIGNED -> ACKNOWLEDGED -> IN_PROGRESS -> COMPLETED -> CLEARED
+# Task State Machine — manages task lifecycle transitions and timeout handling.
 
-On timeout (45s without ACK):
-  - reassignment_count < 2: reassign to next best employee
-  - reassignment_count >= 2: set needs_manager_attention=True, log MANAGER_FLAGGED event
-"""
+# States: CREATED -> ASSIGNED -> ACKNOWLEDGED -> IN_PROGRESS -> COMPLETED -> CLEARED
+
+# On timeout (45s without ACK):
+#   - reassignment_count < 2: reassign to next best employee
+#   - reassignment_count >= 2: set needs_manager_attention=True, log MANAGER_FLAGGED event
+
 
 import logging
 from django.conf import settings
@@ -15,25 +15,17 @@ from .models import Task, TaskEvent, Employee
 
 logger = logging.getLogger(__name__)
 
-# Valid state transitions
 VALID_TRANSITIONS = {
     'CREATED': ['ASSIGNED', 'CLEARED'],
-    'ASSIGNED': ['ACKNOWLEDGED', 'ASSIGNED', 'CLEARED'],  # ASSIGNED->ASSIGNED for reassign
+    'ASSIGNED': ['ACKNOWLEDGED', 'ASSIGNED', 'CLEARED'],  
     'ACKNOWLEDGED': ['IN_PROGRESS', 'COMPLETED'],
     'IN_PROGRESS': ['COMPLETED'],
     'COMPLETED': ['CLEARED'],
     'CLEARED': [],
 }
 
-
 def transition(task, new_status, details=None):
-    """
-    Transition a task to a new status.
-    Validates the transition is legal, creates a TaskEvent, updates the Task.
-    
-    Returns:
-        bool: True if transition was successful, False if invalid
-    """
+#tells if a transition is valid or not and update the task status and employee status accordingly  
     details = details or {}
     old_status = task.status
 
@@ -88,7 +80,7 @@ def transition(task, new_status, details=None):
 
 
 def _broadcast_employee_status(employee, status, task_id=None, zone_id=None, zone_name=None, assigned_at=None):
-    """Fire-and-forget broadcast of employee_status_update to manager_updates group."""
+    #Fire-and-forget broadcast of employee_status_update to manager_updates group
     from channels.layers import get_channel_layer
     from asgiref.sync import async_to_sync
     try:
@@ -112,28 +104,26 @@ def _broadcast_employee_status(employee, status, task_id=None, zone_id=None, zon
 
 
 def check_acknowledgment_timeouts():
-    """
-    Find tasks in ASSIGNED state that have been waiting longer than ACK_TIMEOUT_SECONDS.
-    Either reassign or flag for manager attention.
-    
-    Returns:
-        list: List of (task, action) tuples describing what was done
-    """
+
+    # Find tasks in ASSIGNED state that have been waiting longer than ACK_TIMEOUT_SECONDS.
+    # Either reassign or flag for manager attention.
+    # Returns:
+    #     list: List of (task, action) tuples describing what was done
+
     from .assignment import find_best_employee, create_and_assign_task
 
     timeout_threshold = timezone.now() - timezone.timedelta(
         seconds=settings.ACK_TIMEOUT_SECONDS
     )
-    
+    #accounts for pending tasks
     stale_tasks = Task.objects.filter(
         status='ASSIGNED',
         needs_manager_attention=False,
     ).select_related('assigned_employee', 'zone')
 
     actions = []
-
+    #accounts for last assigned event 
     for task in stale_tasks:
-        # Check the last ASSIGNED event timestamp
         last_assigned_event = task.events.filter(
             event_type='ASSIGNED'
         ).order_by('-timestamp').first()
@@ -255,13 +245,11 @@ def check_acknowledgment_timeouts():
 
 
 def check_break_expiry():
-    """
-    Find employees whose break timer has expired and return them to FREE status.
-    Broadcasts employee_status_update to the manager_updates group.
+    # Find employees whose break timer has expired and return them to FREE status.
+    # Broadcasts employee_status_update to the manager_updates group.
 
-    Returns:
-        int: Number of employees whose breaks were expired.
-    """
+    # Returns:
+    #     int: Number of employees whose breaks were expired.
     from channels.layers import get_channel_layer
     from asgiref.sync import async_to_sync
 

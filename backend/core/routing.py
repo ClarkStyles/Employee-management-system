@@ -1,6 +1,5 @@
-"""
-WebSocket URL routing.
-"""
+# WebSocket URL routing.
+
 
 from django.urls import path
 from . import consumers

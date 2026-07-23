@@ -1,8 +1,8 @@
 """
 ASGI config — routes HTTP and WebSocket traffic.
 
-Employee WS:  ws/employee/<token>/   → TokenAuthMiddleware → EmployeeConsumer
-Manager WS:   ws/manager/            → ManagerSessionAuthMiddleware → ManagerConsumer
+Employee WS:  ws/employee/<token>/    → TokenAuthMiddleware          → EmployeeConsumer
+Manager WS :  ws/manager/             → ManagerSessionAuthMiddleware → ManagerConsumer
               ws/manager/preview/<z>/ → ManagerSessionAuthMiddleware → PreviewConsumer
 """
 

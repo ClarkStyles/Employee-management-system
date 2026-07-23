@@ -181,36 +181,42 @@ loop:
 ```python
 class Zone(models.Model):
     name = models.CharField(max_length=100)
-    threshold_density = models.FloatField(default=0.7)
-    threshold_customer_count = models.IntegerField(default=8)
-    hysteresis_window = models.IntegerField(default=60)  # seconds
-    current_state = models.CharField(choices=["NORMAL","ALERT"], default="NORMAL")
-    required_skill = models.CharField(max_length=100, blank=True)
-    # Zone adjacency stored as JSON: {"Z2": 1, "Z3": 2} = distances
+    threshold_config = models.JSONField(default=dict) # Adaptive threshold buckets
+    hysteresis_window = models.IntegerField(default=2)  # seconds
+    current_state = models.CharField(choices=[('NORMAL', 'Normal'), ('ALERT', 'Alert')], default='NORMAL')
+    required_skill = models.CharField(max_length=100, blank=True, default='')
+    video_source = models.CharField(max_length=255, blank=True, default='')
     adjacency_map = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
     
 class Employee(models.Model):
     name = models.CharField(max_length=100)
+    username = models.CharField(max_length=64, unique=True, default='')
+    password_hash = models.CharField(max_length=256, default='')
     skill_tags = models.JSONField(default=list)  # ["checkout", "electronics", ...]
     status = models.CharField(
-        choices=["FREE","ASSIGNED","BUSY","OFFLINE"], default="OFFLINE"
+        choices=[('FREE', 'Free'), ('ASSIGNED', 'Assigned'), ('ACKNOWLEDGED', 'Acknowledged'), ('IN_PROGRESS', 'In Progress'), ('ON_BREAK', 'On Break'), ('BUSY', 'Busy'), ('OFFLINE', 'Offline')], default='OFFLINE'
     )
-    current_zone = models.ForeignKey(Zone, null=True, on_delete=models.SET_NULL)
-    last_assigned_at = models.DateTimeField(null=True)
-    auth_token = models.CharField(max_length=64, unique=True)  # Simple token auth
+    break_ends_at = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    current_zone = models.ForeignKey(Zone, null=True, blank=True, on_delete=models.SET_NULL, related_name='employees')
+    last_assigned_at = models.DateTimeField(null=True, blank=True)
+    auth_token = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
 class Task(models.Model):
-    zone = models.ForeignKey(Zone, on_delete=models.CASCADE)
-    assigned_employee = models.ForeignKey(Employee, null=True, on_delete=models.SET_NULL)
+    zone = models.ForeignKey(Zone, on_delete=models.CASCADE, related_name='tasks')
+    assigned_employee = models.ForeignKey(Employee, null=True, blank=True, on_delete=models.SET_NULL, related_name='tasks')
     status = models.CharField(
-        choices=["CREATED","ASSIGNED","ACKNOWLEDGED","IN_PROGRESS","COMPLETED","CLEARED"],
+        choices=[('CREATED', 'Created'), ('ASSIGNED', 'Assigned'), ('ACKNOWLEDGED', 'Acknowledged'), ('IN_PROGRESS', 'In Progress'), ('COMPLETED', 'Completed'), ('CLEARED', 'Cleared')],
         default="CREATED"
     )
     score_at_assignment = models.FloatField(default=0)
     reassignment_count = models.IntegerField(default=0)
+    needs_manager_attention = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
-    acknowledged_at = models.DateTimeField(null=True)
-    completed_at = models.DateTimeField(null=True)
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
 
 class TaskEvent(models.Model):
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="events")
@@ -220,6 +226,9 @@ class TaskEvent(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     details = models.JSONField(default=dict)
 ```
+
+**Admin Portal Adjustments:** 
+- In `core/admin.py`, the `EmployeeAdmin` and `TaskAdmin` override `formfield_for_choice_field` to hide the "Acknowledged" and "In Progress" choices from the Django admin UI to prevent managers from manually selecting intermediate transition states.
 
 #### Assignment Engine (`core/assignment.py`)
 
@@ -284,7 +293,7 @@ CREATED ──→ ASSIGNED ──→ ACKNOWLEDGED ──→ IN_PROGRESS ──�
 ```python
 class EmployeeConsumer(AsyncWebsocketConsumer):
     """
-    Connected to: ws/employee/{token}/
+    Connected to: ws/employee/<str:token>/
     
     On connect:
       - Validate token, find Employee
@@ -299,9 +308,17 @@ class EmployeeConsumer(AsyncWebsocketConsumer):
     Server sends (to client):
       - type: "task_offer"  → {task_id, zone_name, expires_in: 45}
       - type: "zone_update" → {zone_id, state, density}
+      - type: "employee_status_update" → pushes current task/zone context
     
     On disconnect:
       - Remove from groups
+    """
+
+class PreviewConsumer(AsyncWebsocketConsumer):
+    """
+    Connected to: ws/preview/<zone_id>/
+    
+    Streams live frames from the cv_worker to the manager dashboard.
     """
 ```
 
@@ -321,9 +338,9 @@ class EmployeeConsumer(AsyncWebsocketConsumer):
 
 #### Token Auth (`core/middleware.py`)
 
-- Simple token-based auth for WebSocket: token passed as URL parameter (`ws/employee/{token}/`)
-- DRF uses `djangorestframework-simplejwt` for REST API auth
-- For the prototype demo, also support a simple static token per employee (from seed data)
+- Token-based auth for WebSocket: token passed as URL parameter (`ws/employee/<str:token>/`)
+- Employee model stores a `username` and `password_hash` to support a traditional login flow from the PWA.
+- DRF provides custom authentication endpoints to exchange login credentials for the employee `auth_token`.
 
 #### ASGI Configuration (`backend/asgi.py`)
 
