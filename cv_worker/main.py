@@ -149,8 +149,8 @@ def main():
                         density=tracker.density,
                     )
 
-                # Tiny sleep to avoid pegging CPU if streams are exhausted/fast
-                time.sleep(0.01)
+                # Tiny sleep to yield CPU if needed without introducing artificial latency
+                time.sleep(0.001)
 
     except KeyboardInterrupt:
         logger.info("Shutting down...")

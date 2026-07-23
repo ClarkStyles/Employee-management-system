@@ -23,7 +23,7 @@ if _camera_urls_env.strip():
 else:
     CAMERA_URLS = ["0"]
 
-FRAME_SAMPLE_INTERVAL = int(os.getenv("FRAME_SAMPLE_INTERVAL", "6"))
+FRAME_SAMPLE_INTERVAL = int(os.getenv("FRAME_SAMPLE_INTERVAL", "1"))
 ONNX_MODEL_PATH = os.getenv("ONNX_MODEL_PATH", str(BASE_DIR / "cv_worker" / "models" / "yolo11n.onnx"))
 
 REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
@@ -36,14 +36,14 @@ ZONE_ROIS = {
     "4": [(0.5, 0.5), (1.0, 0.5), (1.0, 1.0), (0.5, 1.0)],
 }
 
-HYSTERESIS_WINDOW_SEC = int(os.getenv("HYSTERESIS_WINDOW_SECONDS", 60))
+HYSTERESIS_WINDOW_SEC = int(os.getenv("HYSTERESIS_WINDOW_SECONDS", 2))
 
 SNAPSHOT_DIR = Path(os.getenv("SNAPSHOT_DIR", str(BASE_DIR / "snapshots")))
 SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
 SNAPSHOT_TTL_HOURS = int(os.getenv("SNAPSHOT_TTL_HOURS", 48))
 
 # Detection tuning (runtime)
-CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", 0.35))
+CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", 0.25))
 NMS_IOU_THRESHOLD = float(os.getenv("NMS_IOU_THRESHOLD", 0.45))
 PERSON_CLASS_ID = int(os.getenv("PERSON_CLASS_ID", 0))
 

@@ -49,13 +49,13 @@ class ZoneTracker:
             for bucket in self.threshold_config.get("buckets", []):
                 if day_name in bucket.get("days", []):
                     if bucket.get("start", "00:00") <= current_time < bucket.get("end", "24:00"):
-                        return bucket.get("threshold", 0.7), bucket.get("customer_count", 8)
+                        return bucket.get("threshold", 0.5), bucket.get("customer_count", 2)
                         
             return (
-                self.threshold_config.get("default_threshold", 0.7),
-                self.threshold_config.get("default_customer_count", 8)
+                self.threshold_config.get("default_threshold", 0.5),
+                self.threshold_config.get("default_customer_count", 2)
             )
-        return (0.7, 8) # Fallback
+        return (0.5, 2) # Fallback
 
     def update(self, detected_boxes, checked_in_employees):
         """
@@ -71,11 +71,10 @@ class ZoneTracker:
             self._fetch_threshold_config()
             self.last_config_fetch = now
 
-        # Add to ring buffer for smoothing
+        # Add to ring buffer for smoothing (used for alert hysteresis if needed)
         self.person_count_buffer.append(len(detected_boxes))
-        smoothed_count = sum(self.person_count_buffer) / len(self.person_count_buffer)
         
-        self.current_count = int(round(smoothed_count))
+        self.current_count = len(detected_boxes)
         self.checked_in_employees = checked_in_employees
         
         # Customers = Total - Employees (floor at 0)

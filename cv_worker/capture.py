@@ -44,6 +44,17 @@ class VideoStream:
         self.interval = config.FRAME_SAMPLE_INTERVAL
         self._open_stream()
 
+    def _restart_stream(self):
+        """Close the current stream and reopen it from the beginning."""
+        try:
+            if hasattr(self, 'stream') and self.stream is not None:
+                self.stream.release()
+        except Exception:
+            pass
+
+        self.frame_count = 0
+        self._open_stream()
+
     def read(self):
         if not hasattr(self, 'stream') or not self.stream.isOpened():
             logger.info(f"Attempting to reopen video source: {self.src}")
@@ -56,12 +67,8 @@ class VideoStream:
         while self.stream.isOpened():
             ret, frame = self.stream.read()
             if not ret:
-                # Reached EOF or stream dropped, loop the video by re-opening
-                logger.info(f"Looping video source: {self.src}")
-                self.stream.release()
-                import time
-                time.sleep(2)  # brief pause before reconnecting
-                self._open_stream()
+                logger.info(f"Reached end of video source, looping: {self.src}")
+                self._restart_stream()
                 if not self.stream.isOpened():
                     return None
                 continue
@@ -69,7 +76,7 @@ class VideoStream:
             self.frame_count += 1
             if self.frame_count % self.interval == 0:
                 return frame
-                
+
         return None
 
     def release(self):

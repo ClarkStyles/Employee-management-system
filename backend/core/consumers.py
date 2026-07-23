@@ -604,7 +604,7 @@ class PreviewConsumer(AsyncWebsocketConsumer):
     Sets/clears preview_active:{zone_id} in Redis using a reference counter.
     """
 
-    FRAME_INTERVAL = 0.5  # ~2 fps
+    FRAME_INTERVAL = 0.05  # ~20 fps live stream
 
     async def connect(self):
         self.manager_user = self.scope.get('manager_user')

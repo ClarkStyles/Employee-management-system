@@ -52,38 +52,24 @@ class Detector:
 
     def detect(self, frame, roi_coords=None):
         """
-        Detect persons in the frame. If roi_coords is provided, crop/mask the frame first.
+        Detect persons in the frame. If roi_coords is provided, filter detections by ROI polygon.
+        Returns bounding boxes in original frame pixel coordinates: [x1, y1, x2, y2].
         """
-        if roi_coords:
-            mask = self.get_roi_mask(frame.shape, roi_coords)
-            masked_frame = cv2.bitwise_and(frame, frame, mask=mask)
-            
-            # Optimization: use cv2.boundingRect to find bounding box of ROI coordinates
-            h, w = frame.shape[:2]
-            pts = np.array([[int(x * w), int(y * h)] for x, y in roi_coords], np.int32)
-            x, y, bw, bh = cv2.boundingRect(pts)
-            
-            # Ensure within frame bounds
-            x1, y1 = max(0, x), max(0, y)
-            x2, y2 = min(w - 1, x + bw), min(h - 1, y + bh)
-            
-            if x2 > x1 and y2 > y1:
-                cropped = masked_frame[y1:y2+1, x1:x2+1]
-                input_tensor = self.preprocess(cropped)
-            else:
-                return []
-        else:
-            input_tensor = self.preprocess(frame)
+        orig_h, orig_w = frame.shape[:2]
+        if orig_h == 0 or orig_w == 0:
+            return []
 
+        input_tensor = self.preprocess(frame)
         outputs = self.session.run(self.output_names, {self.input_name: input_tensor})
         
-        # Parse outputs (YOLOv8/11 format typically: [batch, num_classes+4, num_boxes] if nms=False
-        # If nms=True, format is usually [batch, num_boxes, 6] (x1, y1, x2, y2, conf, cls)
         out = outputs[0]
         
-        boxes = []
+        raw_boxes = []
         confidences = []
         
+        scale_x = orig_w / float(self.input_w)
+        scale_y = orig_h / float(self.input_h)
+
         if len(out.shape) == 3 and out.shape[1] > 6:
             # Format: [1, 84, 8400] (for 80 classes)
             out = out[0].transpose(1, 0) # [8400, 84]
@@ -99,28 +85,46 @@ class Detector:
                     
                 conf = class_scores[class_id]
                 if conf > config.CONFIDENCE_THRESHOLD:
-                    # x, y, w, h
+                    # x, y, w, h in 640x640 model pixel space
                     x, y, w, h = row[0], row[1], row[2], row[3]
-                    # convert to x1, y1, x2, y2
-                    x1 = x - w/2
-                    y1 = y - h/2
-                    x2 = x + w/2
-                    y2 = y + h/2
-                    boxes.append([x1, y1, x2, y2])
+                    x1 = (x - w/2) * scale_x
+                    y1 = (y - h/2) * scale_y
+                    x2 = (x + w/2) * scale_x
+                    y2 = (y + h/2) * scale_y
+                    
+                    raw_boxes.append([x1, y1, x2, y2])
                     confidences.append(float(conf))
             
-            if boxes:
-                indices = self.nms(np.array(boxes), np.array(confidences), config.NMS_IOU_THRESHOLD)
-                return [boxes[i] for i in indices]
-            return []
+            if raw_boxes:
+                indices = self.nms(np.array(raw_boxes), np.array(confidences), config.NMS_IOU_THRESHOLD)
+                boxes = [raw_boxes[i] for i in indices]
+            else:
+                boxes = []
             
         elif len(out.shape) == 3 and out.shape[2] == 6:
             # nms=True format
+            boxes = []
             for row in out[0]:
                 x1, y1, x2, y2, conf, cls = row
                 if int(cls) == config.PERSON_CLASS_ID and conf > config.CONFIDENCE_THRESHOLD:
-                    boxes.append([x1, y1, x2, y2])
-            return boxes
-            
-        # Fallback if structure is unknown
-        return []
+                    boxes.append([x1 * scale_x, y1 * scale_y, x2 * scale_x, y2 * scale_y])
+        else:
+            boxes = []
+
+        # Filter by ROI polygon if specified and not full frame
+        if roi_coords and boxes:
+            is_full_frame = (roi_coords == [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
+            if not is_full_frame:
+                pts = np.array([[int(px * orig_w), int(py * orig_h)] for px, py in roi_coords], np.int32)
+                filtered = []
+                for box in boxes:
+                    bx1, by1, bx2, by2 = box
+                    cx = (bx1 + bx2) / 2.0
+                    cy = (by1 + by2) / 2.0
+                    foot_y = by2
+                    if cv2.pointPolygonTest(pts, (float(cx), float(cy)), False) >= 0 or \
+                       cv2.pointPolygonTest(pts, (float(cx), float(foot_y)), False) >= 0:
+                        filtered.append(box)
+                return filtered
+
+        return boxes

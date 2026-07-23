@@ -99,24 +99,37 @@ def generate_preview(
 
             cv2.rectangle(preview, (px1, py1), (px2, py2), color=(0, 200, 80), thickness=2)
 
-        # --- 4. Text overlays ---
+        # --- 4. High-contrast Text Overlays with Black Outline ---
         zone_name = f"Zone {zone_id}"
-        overlay_lines = [
-            zone_name,
-            f"Count: {customer_count}",
-            f"Density: {density:.2f}",
-        ]
+        count_text = f"Count: {len(boxes)}"
+        density_text = f"Density: {density:.2f}"
+        overlay_lines = [zone_name, count_text, density_text]
 
-        y_offset = 20
+        # Dark semi-transparent background card for readability
+        card_w, card_h = 165, 80
+        overlay_bg = preview.copy()
+        cv2.rectangle(overlay_bg, (6, 6), (card_w, card_h), (10, 10, 18), -1)
+        cv2.addWeighted(overlay_bg, 0.7, preview, 0.3, 0, preview)
+        cv2.rectangle(preview, (6, 6), (card_w, card_h), (99, 102, 241), 1)
+
+        y_offset = 26
         for line in overlay_lines:
-            # Shadow for readability
+            # 1. Thick 4px black outline (stroke) around characters
             cv2.putText(
-                preview, line, (11, y_offset + 1),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 2, cv2.LINE_AA
+                preview, line, (14, y_offset),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 4, cv2.LINE_AA
             )
+            # 2. Crisp bright text fill
+            if "Density" in line:
+                text_color = (0, 255, 255) # Vivid Yellow
+            elif "Count" in line:
+                text_color = (0, 255, 120) # Vivid Green
+            else:
+                text_color = (255, 255, 255) # White
+
             cv2.putText(
-                preview, line, (10, y_offset),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1, cv2.LINE_AA
+                preview, line, (14, y_offset),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.55, text_color, 1, cv2.LINE_AA
             )
             y_offset += 22
 

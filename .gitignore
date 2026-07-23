@@ -33,3 +33,13 @@ snapshots/*.jpg
 # OS
 .DS_Store
 Thumbs.db
+
+#database
+dump.rdb
+mermaid
+redis.zip
+scratch
+tests
+task.md
+cv_worker/demo.mp4
+redis_bin

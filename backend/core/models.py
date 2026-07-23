@@ -26,7 +26,7 @@ class Zone(models.Model):
     threshold_config = models.JSONField(default=dict)
 
     hysteresis_window = models.IntegerField(
-        default=60,
+        default=2,
         help_text="Seconds density must stay above/below threshold before state change"
     )
 
@@ -54,7 +54,7 @@ class Zone(models.Model):
         Falls back to default values if no bucket matches."""
         config = self.threshold_config
         if not config:
-            return (0.7, 8)
+            return (0.5, 2)
 
         now = timezone.localtime()
         day_name = now.strftime("%a").lower()[:3]  # mon, tue, ...
@@ -66,8 +66,8 @@ class Zone(models.Model):
                     return (bucket["threshold"], bucket["customer_count"])
 
         return (
-            config.get("default_threshold", 0.7),
-            config.get("default_customer_count", 8),
+            config.get("default_threshold", 0.5),
+            config.get("default_customer_count", 2),
         )
 
     def __str__(self):
